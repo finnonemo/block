@@ -100,7 +100,7 @@ function clamp(v, lo, hi) {
 }
 
 function makeHeights(cfg, rng) {
-  const { amount, volatility = 0, connectionTypes, widthScale = 0 } = cfg;
+  const { amount, connectionTypes, sizeScale = 0 } = cfg;
 
   // Staircase trend (start height !== end height):
   // heights must sum to Math.abs(ev - xv) + shared rows so they tile the trend exactly.
@@ -119,35 +119,28 @@ function makeHeights(cfg, rng) {
       const minLeft = amount - i - 2;
       const maxH    = Math.min(14, remaining - minLeft);
       const pool    = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
-      
+
       let picked;
       if (pool.length) {
-        const progress = i / (amount - 1);
         const avgH = targetSum / (amount - 1);
-        const expansionH = 1 + progress * (14 - 1);
-        const targetH = avgH + widthScale * (expansionH - avgH);
-
-        const sortedPool = [...pool].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
+        const sortedPool = [...pool].sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
         const subPool = sortedPool.slice(0, 3);
         picked = subPool.length ? rand(subPool, rng) : rand(pool, rng);
       } else {
         picked = 1;
       }
-      
+
       heights.push(picked);
       remaining -= picked;
     }
     heights.push(clamp(remaining, 1, 14));
 
-    // Generate the last block height heights[amount-1] independently (must be >= heights[amount-2])
+    // Generate the last block height independently (must be >= heights[amount-2])
     const minLastH = heights[heights.length - 1];
-    const progress = 1;
     const avgH = targetSum / (amount - 1);
-    const expansionH = 14;
-    const targetH = avgH + widthScale * (expansionH - avgH);
     const pool = ALLOWED_HEIGHTS
       .filter(h => h >= minLastH)
-      .sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
+      .sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
     const subPool = pool.slice(0, 3);
     heights.push(subPool.length ? rand(subPool, rng) : minLastH);
 
@@ -155,17 +148,16 @@ function makeHeights(cfg, rng) {
     return heights;
   }
 
-  // Heights are always drawn from the full pool (1–14).
-  const h = Array(amount).fill(null).map((_, i) => {
-    const progress = i / (amount - 1);
-    const avgH = ROWS / amount;
-    const expansionH = 1 + progress * (14 - 1);
-    const targetH = avgH + widthScale * (expansionH - avgH);
+  // Non-staircase: sizeScale pulls heights toward ROWS/amount so that when widths
+  // also match heights (via sizeScale in makeWidths), blocks become square (1×1, 2×2…).
+  // sizeScale=0 → wide pool (free height variation); sizeScale=1 → tight pool near avgH.
+  const avgH = ROWS / amount;
+  const sortedByAvg = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
+  // sizeScale=0 → full pool (free variation); sizeScale=1 → single closest value → uniform heights
+  const subPoolSize = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * (1 - sizeScale * 0.9)));
+  const heightPool  = sortedByAvg.slice(0, subPoolSize);
 
-    const pool = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
-    const subPool = pool.slice(0, 3);
-    return rand(subPool, rng);
-  });
+  const h = Array(amount).fill(null).map(() => rand(heightPool, rng));
   h.sort((a, b) => a - b); // always ascending to support grow from small to large
   return h;
 }

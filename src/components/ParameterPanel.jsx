@@ -217,7 +217,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Block Width ──────────────────────────────────────────────── */}
       <ParamRow
         label="Block Width"
-        hint="Low = equal widths · High = widths grow left to right"
+        hint="Low = equal widths · High = widths vary a lot (grow left to right)"
       >
         <ParamSlider
           value={params.widthScale ?? 5}
@@ -231,7 +231,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Block Scale ─────────────────────────────────────────────── */}
       <ParamRow
         label="Block Scale"
-        hint="Square-like dimensions (low = rect · high = 1×1 2×2 …)"
+        hint="Low = free rectangles · High = W and H match (1×1, 2×2, 3×3…)"
       >
         <ParamSlider
           value={params.sizeScale ?? 5}
