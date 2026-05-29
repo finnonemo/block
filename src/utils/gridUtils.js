@@ -51,55 +51,64 @@ export const DEFAULT_PARAMS = {
 
 // Build generation config from the UI parameters
 export function buildConfigFromParams({ complexity, startHeight, overlapChance, cornerChance, volatility = 0 }) {
-  const meta   = COMPLEXITY[complexity] ?? COMPLEXITY[2];
-  const amount = meta.amountOpts[Math.floor(Math.random() * meta.amountOpts.length)];
-  const oc     = overlapChance / 10;
+  const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
+  const oc   = overlapChance / 10;
 
   return {
-    amount,
-    minHeight:    1,
-    maxHeight:    meta.maxHeight,
-    emergenceVal: ROWS - startHeight,
+    amountOpts:    meta.amountOpts,   // amount picked by generatePatternRects using its rng
+    minHeight:     1,
+    maxHeight:     meta.maxHeight,
+    emergenceVal:  ROWS - startHeight,
     overlapChance: oc,
     targetCorners: cornerChance,
-    volatility:   volatility / 10,  // 0–1 rebellion probability
+    volatility:    volatility / 10,
+  };
+}
+
+// Mulberry32 seeded PRNG — deterministic, fast, good distribution
+export function createRNG(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-function rand(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+function rand(arr, rng) {
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function makeHeights(cfg) {
+function makeHeights(cfg, rng) {
   const { amount } = cfg;
   const minH    = cfg.minHeight ?? 1;
   const maxH    = cfg.maxHeight ?? 8;
   const allowed = ALLOWED_HEIGHTS.filter(h => h >= minH && h <= maxH);
   const pool    = allowed.length ? allowed : ALLOWED_HEIGHTS;
-  const h       = Array(amount).fill(null).map(() => rand(pool));
-  // Keep sorted staircase when no volatility; random order creates candlestick sizes
+  const h       = Array(amount).fill(null).map(() => rand(pool, rng));
   if ((cfg.volatility ?? 0) === 0) h.sort((a, b) => a - b);
   return h;
 }
 
-function makeWidths(heights, amount, overlapChance) {
+function makeWidths(heights, amount, overlapChance, rng) {
   const maxH    = Math.max(...heights, 1);
   const allowedW = maxH <= 3 ? [1, 2] : maxH <= 4 ? [2, 3] : [4, 6];
 
   for (let attempt = 0; attempt < 1000; attempt++) {
-    const widths  = Array(amount).fill(0).map(() => rand(allowedW));
+    const widths  = Array(amount).fill(0).map(() => rand(allowedW, rng));
     const overlaps = [0];
 
     for (let i = 1; i < amount; i++) {
-      if (overlapChance > 0 && Math.random() < overlapChance) {
+      if (overlapChance > 0 && rng() < overlapChance) {
         const maxOv = Math.min(2, Math.min(widths[i - 1], widths[i]) - 1);
-        overlaps.push(maxOv > 0 ? Math.floor(Math.random() * (maxOv + 1)) : 0);
+        overlaps.push(maxOv > 0 ? Math.floor(rng() * (maxOv + 1)) : 0);
       } else {
         overlaps.push(0);
       }
@@ -128,10 +137,12 @@ function makeWidths(heights, amount, overlapChance) {
 
 // ─── Public generation ───────────────────────────────────────────────────────
 
-export function generatePatternRects(cfg) {
-  const heights  = makeHeights(cfg);
+export function generatePatternRects(cfg, rng = Math.random) {
+  const amount   = cfg.amount ?? rand(cfg.amountOpts, rng);
+  const cfgAmt   = { ...cfg, amount };
+  const heights  = makeHeights(cfgAmt, rng);
   const oc       = cfg.overlapChance ?? 0;
-  const { widths, overlaps } = makeWidths(heights, cfg.amount, oc);
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng);
 
   // Resolve emergence Y anchor
   const emergenceVal =
@@ -142,17 +153,16 @@ export function generatePatternRects(cfg) {
   // Pre-select which adjacent pairs will be forced corner-meets
   const cornerPairs   = new Set();
   const targetCorners = cfg.targetCorners ?? 0;
-  if (targetCorners > 0 && cfg.amount > 1) {
-    const pairIndices = Array.from({ length: cfg.amount - 1 }, (_, i) => i + 1);
+  if (targetCorners > 0 && amount > 1) {
+    const pairIndices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
     for (let i = pairIndices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rng() * (i + 1));
       [pairIndices[i], pairIndices[j]] = [pairIndices[j], pairIndices[i]];
     }
     pairIndices.slice(0, Math.min(targetCorners, pairIndices.length)).forEach(p => cornerPairs.add(p));
   }
 
   const volatility = cfg.volatility ?? 0;
-  const amount     = cfg.amount;
 
   // ── Baseline Y positions ─────────────────────────────────────────────────
   const startY = clamp(emergenceVal - heights[0], 0, ROWS - heights[0]);
@@ -165,8 +175,8 @@ export function generatePatternRects(cfg) {
     let currentY = startY;
     for (let i = 0; i < amount; i++) {
       if (i > 0) {
-        const step = Math.floor(Math.random() * (maxStep + 1));
-        const dir  = Math.random() < 0.5 ? 1 : -1;
+        const step = Math.floor(rng() * (maxStep + 1));
+        const dir  = rng() < 0.5 ? 1 : -1;
         currentY   = clamp(currentY + dir * step, 0, ROWS - heights[i]);
       }
       baseline.push(currentY);
@@ -197,7 +207,7 @@ export function generatePatternRects(cfg) {
       const above   = prevY - h;
       const okBelow = below + h <= ROWS;
       const okAbove = above >= 0;
-      if (okBelow && okAbove) y = Math.random() < 0.5 ? below : above;
+      if (okBelow && okAbove) y = rng() < 0.5 ? below : above;
       else if (okBelow)       y = below;
       else if (okAbove)       y = above;
       else {
@@ -354,6 +364,82 @@ export function extractBlockGroups(blocks) {
   }
 
   return rects;
+}
+
+// ─── Seed encode / decode ────────────────────────────────────────────────────
+// Wire format: 15 bytes → Base62 (A–Z a–z 0–9) → 21 alphanumeric chars, no symbols.
+//   [0-3]  uint32 random seed  (big-endian)
+//   [4]    complexity           (1–4)
+//   [5]    startHeight / 4      (0–4  →  0,4,8,12,16)
+//   [6]    overlapChance        (0–10)
+//   [7]    cornerChance         (0–3)
+//   [8]    volatility           (0–10)
+//   [9-11] colorA RGB
+//   [12-14] colorB RGB
+
+const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const B62_LEN = 21; // ceil(120 bits / log2(62))
+
+function bytesToB62(bytes) {
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let s = '';
+  while (n > 0n) { s = B62[Number(n % 62n)] + s; n /= 62n; }
+  return s.padStart(B62_LEN, 'A');
+}
+
+function b62ToBytes(str) {
+  let n = 0n;
+  for (const c of str) n = n * 62n + BigInt(B62.indexOf(c));
+  const bytes = new Uint8Array(15);
+  for (let i = 14; i >= 0; i--) { bytes[i] = Number(n & 0xffn); n >>= 8n; }
+  return bytes;
+}
+
+function hexToBytes(hex) {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function bytesToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+export function encodeSeed(seed, params, colorA, colorB) {
+  const { complexity, startHeight, overlapChance, cornerChance, volatility = 0 } = params;
+  const [ar, ag, ab] = hexToBytes(colorA);
+  const [br, bg, bb] = hexToBytes(colorB);
+  const buf = new Uint8Array([
+    (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
+    complexity, startHeight / 4, overlapChance, cornerChance, volatility,
+    ar, ag, ab, br, bg, bb,
+  ]);
+  return bytesToB62(buf);
+}
+
+export function decodeSeed(str) {
+  try {
+    const s = str.trim();
+    if (s.length !== B62_LEN || ![...s].every(c => B62.includes(c))) return null;
+    const b    = b62ToBytes(s);
+    const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    const params = {
+      complexity:    b[4],
+      startHeight:   b[5] * 4,
+      overlapChance: b[6],
+      cornerChance:  b[7],
+      volatility:    b[8],
+    };
+    // Basic range validation
+    if (params.complexity < 1 || params.complexity > 4) return null;
+    if (params.startHeight > 16 || params.startHeight % 4 !== 0) return null;
+    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10) return null;
+    const colorA = bytesToHex(b[9], b[10], b[11]);
+    const colorB = bytesToHex(b[12], b[13], b[14]);
+    return { seed, params, colorA, colorB };
+  } catch {
+    return null;
+  }
 }
 
 // ─── SVG Export ──────────────────────────────────────────────────────────────

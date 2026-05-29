@@ -14,20 +14,30 @@ import {
   extractBlockGroups,
   buildSVG,
   copySVGToClipboard,
+  createRNG,
+  encodeSeed,
+  decodeSeed,
 } from '@/utils/gridUtils'
 
 const DEFAULT_PALETTE = PALETTES[0] // Foundation
 
-function generateState(params, colorA) {
+function makeNewSeed() {
+  return (Math.random() * 0x100000000) >>> 0
+}
+
+function generateState(params, seed) {
+  const rng   = createRNG(seed)
   const cfg   = buildConfigFromParams(params)
-  const rects = generatePatternRects(cfg)
+  const rects = generatePatternRects(cfg, rng)
   return { rects, blocks: syncBlocks(rects) }
 }
 
 function initApp() {
   const params = { ...DEFAULT_PARAMS }
-  const { rects, blocks } = generateState(params, DEFAULT_PALETTE.surface)
+  const seed   = makeNewSeed()
+  const { rects, blocks } = generateState(params, seed)
   return {
+    seed,
     params,
     colorA:     DEFAULT_PALETTE.surface,
     colorB:     DEFAULT_PALETTE.background,
@@ -40,18 +50,24 @@ export default function App() {
   const [state, setState] = useState(initApp)
   const [copyStatus, setCopyStatus] = useState('idle')
 
-  const { params, colorA, colorB, rectangles, blocks } = state
+  const { seed, params, colorA, colorB, rectangles, blocks } = state
 
-  // Auto-generate when params change (but not on color-only changes)
-  const generate = useCallback((newParams = params) => {
-    const { rects, blocks } = generateState(newParams, colorA)
-    setState(s => ({ ...s, params: newParams, rectangles: rects, blocks }))
-  }, [params, colorA])
+  const handleGenerate = useCallback(() => {
+    const newSeed = makeNewSeed()
+    const { rects, blocks } = generateState(params, newSeed)
+    setState(s => ({ ...s, seed: newSeed, rectangles: rects, blocks }))
+  }, [params])
 
   const handleParamsChange = useCallback((newParams) => {
-    const { rects, blocks } = generateState(newParams, colorA)
-    setState(s => ({ ...s, params: newParams, rectangles: rects, blocks }))
-  }, [colorA])
+    const newSeed = makeNewSeed()
+    const { rects, blocks } = generateState(newParams, newSeed)
+    setState(s => ({ ...s, params: newParams, seed: newSeed, rectangles: rects, blocks }))
+  }, [])
+
+  const handleSeedApply = useCallback(({ seed: newSeed, params: newParams, colorA: newA, colorB: newB }) => {
+    const { rects, blocks } = generateState(newParams, newSeed)
+    setState({ seed: newSeed, params: newParams, colorA: newA, colorB: newB, rectangles: rects, blocks })
+  }, [])
 
   const handleColorAChange = useCallback(hex => setState(s => ({ ...s, colorA: hex })), [])
   const handleColorBChange = useCallback(hex => setState(s => ({ ...s, colorB: hex })), [])
@@ -66,8 +82,6 @@ export default function App() {
       return { ...s, blocks: newBlocks, rectangles: newRects }
     })
   }, [])
-
-  const handleGenerate = useCallback(() => generate(params), [generate, params])
 
   const handleClear = useCallback(() => {
     setState(s => ({ ...s, blocks: Array(COLS * ROWS).fill(1), rectangles: [] }))
@@ -172,6 +186,15 @@ export default function App() {
                 </div>
               )}
 
+              {/* Seed */}
+              <SeedPanel
+                seed={seed}
+                params={params}
+                colorA={colorA}
+                colorB={colorB}
+                onApply={handleSeedApply}
+              />
+
             </div>
           </div>
 
@@ -256,6 +279,109 @@ function StatRow({ label, children }) {
     <div className="flex justify-between text-slate-400">
       <span>{label}</span>
       {children}
+    </div>
+  )
+}
+
+function SeedPanel({ seed, params, colorA, colorB, onApply }) {
+  const [input, setInput]   = useState('')
+  const [copied, setCopied] = useState(false)
+  const [error, setError]   = useState(false)
+
+  const seedStr   = seed != null ? encodeSeed(seed, params, colorA, colorB) : null
+  const preview   = input.trim() ? decodeSeed(input.trim()) : null
+
+  const handleCopy = async () => {
+    if (!seedStr) return
+    await navigator.clipboard.writeText(seedStr)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const applyDecoded = (decoded) => {
+    onApply(decoded)
+    setInput('')
+    setError(false)
+  }
+
+  const handleApply = () => {
+    const decoded = decodeSeed(input.trim())
+    if (!decoded) { setError(true); setTimeout(() => setError(false), 2000); return }
+    applyDecoded(decoded)
+  }
+
+  const handlePaste = (e) => {
+    const text = e.clipboardData.getData('text')
+    const decoded = decodeSeed(text.trim())
+    if (decoded) { e.preventDefault(); applyDecoded(decoded) }
+  }
+
+  return (
+    <div>
+      <SectionLabel>Pattern Seed</SectionLabel>
+
+      {/* Current seed display + copy */}
+      <div className="flex gap-1.5 mb-2">
+        <code className="flex-1 min-w-0 bg-[#0c1926] border border-[#1e2d3d] rounded px-2 py-1.5 text-[10px] font-mono text-[#50cfff] truncate select-all">
+          {seedStr ?? '—'}
+        </code>
+        <button
+          onClick={handleCopy}
+          disabled={!seedStr}
+          title="Copy seed"
+          className="shrink-0 flex items-center justify-center w-7 h-7 rounded bg-[#0c1926] border border-[#1e2d3d] hover:border-[#3a4a5a] text-slate-400 hover:text-slate-200 disabled:opacity-30 transition-all"
+        >
+          {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+        </button>
+      </div>
+
+      {/* Paste / type seed to restore */}
+      <div className="flex gap-1.5">
+        <input
+          value={input}
+          onChange={e => { setInput(e.target.value); setError(false) }}
+          onPaste={handlePaste}
+          onKeyDown={e => e.key === 'Enter' && handleApply()}
+          placeholder="Paste seed to restore…"
+          className={cn(
+            'flex-1 min-w-0 bg-[#0c1926] border rounded px-2 py-1.5 text-[10px] font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none transition-colors',
+            error            ? 'border-red-500/60 focus:border-red-500'
+            : preview        ? 'border-emerald-500/50 focus:border-emerald-500'
+            : input.length   ? 'border-amber-500/50 focus:border-amber-500'
+                             : 'border-[#1e2d3d] focus:border-[#50cfff]'
+          )}
+        />
+        <button
+          onClick={handleApply}
+          disabled={!input.trim()}
+          className="shrink-0 px-2 py-1.5 rounded bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff] text-[10px] font-semibold text-slate-400 hover:text-[#50cfff] disabled:opacity-30 transition-all"
+        >
+          Apply
+        </button>
+      </div>
+
+      {/* Decoded preview */}
+      {preview && (
+        <div className="mt-1.5 bg-[#0c1926] border border-emerald-500/30 rounded px-2 py-1.5 space-y-1">
+          <p className="text-[9px] font-semibold text-emerald-400 uppercase tracking-widest">Valid seed</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
+            <span>Complexity <span className="text-slate-200">{preview.params.complexity}</span></span>
+            <span>Start <span className="text-slate-200">{preview.params.startHeight}</span></span>
+            <span>Overlap <span className="text-slate-200">{preview.params.overlapChance * 10}%</span></span>
+            <span>Corner <span className="text-slate-200">{preview.params.cornerChance}</span></span>
+            <span>Volatility <span className="text-slate-200">{preview.params.volatility * 10}%</span></span>
+          </div>
+          <div className="flex items-center gap-2 text-[9px] text-slate-400">
+            <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: preview.colorA }} />
+            <span className="font-mono">{preview.colorA}</span>
+            <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: preview.colorB }} />
+            <span className="font-mono">{preview.colorB}</span>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p className="text-[10px] text-red-400 mt-1">Invalid seed — check and try again</p>
+      )}
     </div>
   )
 }
