@@ -49,8 +49,9 @@ export default function App() {
   }, [params, colorA])
 
   const handleParamsChange = useCallback((newParams) => {
-    setState(s => ({ ...s, params: newParams }))
-  }, [])
+    const { rects, blocks } = generateState(newParams, colorA)
+    setState(s => ({ ...s, params: newParams, rectangles: rects, blocks }))
+  }, [colorA])
 
   const handleColorAChange = useCallback(hex => setState(s => ({ ...s, colorA: hex })), [])
   const handleColorBChange = useCallback(hex => setState(s => ({ ...s, colorB: hex })), [])
@@ -87,7 +88,7 @@ export default function App() {
   return (
     <div className="h-screen bg-[#07101e] text-slate-200 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+      <header className="flex items-center px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-md bg-[#50cfff] flex items-center justify-center shrink-0">
             <Layers size={14} className="text-[#01172b]" strokeWidth={2.5} />
@@ -97,19 +98,6 @@ export default function App() {
             <span className="ml-2 text-xs text-slate-500">Finnomena Brand · 16×16</span>
           </div>
         </div>
-
-        <Button
-          onClick={handleCopy}
-          disabled={rectangles.length === 0}
-          className={cn(
-            'gap-2 text-xs font-semibold',
-            copyStatus === 'success' && 'bg-emerald-500 hover:bg-emerald-500 text-white'
-          )}
-        >
-          {copyStatus === 'success'
-            ? <><Check size={14} /> Copied!</>
-            : <><Copy size={14} /> Copy SVG to Figma</>}
-        </Button>
       </header>
 
       {/* Body */}
@@ -179,6 +167,19 @@ export default function App() {
             <Button className="w-full gap-2 text-xs" onClick={handleGenerate}>
               <RefreshCw size={13} />
               Generate Pattern
+            </Button>
+            <Button
+              onClick={handleCopy}
+              disabled={rectangles.length === 0}
+              variant="secondary"
+              className={cn(
+                'w-full gap-2 text-xs font-semibold',
+                copyStatus === 'success' && 'bg-emerald-500 hover:bg-emerald-500 text-white border-emerald-500'
+              )}
+            >
+              {copyStatus === 'success'
+                ? <><Check size={13} /> Copied!</>
+                : <><Copy size={13} /> Copy SVG to Figma</>}
             </Button>
             <Button variant="secondary" className="w-full gap-2 text-xs" onClick={handleClear}>
               Clear Canvas
