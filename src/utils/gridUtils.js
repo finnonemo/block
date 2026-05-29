@@ -56,11 +56,12 @@ export const DEFAULT_PARAMS = {
   endHeight:     0,
   overlapChance: 0,   // 0–10 integer (maps to 0–100%)
   cornerChance:  0,   // 0–3 exact count
-  volatility:    0,   // 0–10 integer (maps to 0–100% rebellion probability)
+  volatility:    5,   // 0–10 integer (maps to 0–100% curve bending, default 50%)
+  sizeScale:     5,   // 0–10 integer (maps to 0–100% block scaling, default 50%)
 };
 
 // Build generation config from the UI parameters
-export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 }) {
+export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5 }) {
   const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
   const oc   = overlapChance / 10;
 
@@ -71,6 +72,7 @@ export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, 
     overlapChance: oc,
     targetCorners: cornerChance,
     volatility:    volatility / 10,
+    sizeScale:     sizeScale / 10,
   };
 }
 
@@ -96,19 +98,17 @@ function clamp(v, lo, hi) {
 }
 
 function makeHeights(cfg, rng) {
-  const { amount, volatility = 0 } = cfg;
+  const { amount, volatility = 0, connectionTypes, sizeScale = 0 } = cfg;
 
   // Full-span staircase (start=0 end=16 or start=16 end=0):
   // heights must sum to exactly ROWS so every block tiles the full height with no gaps.
   const ev = typeof cfg.emergenceVal === 'number' ? cfg.emergenceVal : ROWS;
   const xv = typeof cfg.exitVal      === 'number' ? cfg.exitVal      : ev;
-  if (Math.abs(ev - xv) === ROWS) {
-    // Each corner-like connection (corner or RED) saves 1 from the sum (no shared row).
-    // Each edge-share connection needs 1 extra (1 shared row).
-    // sum = ROWS + (amount-1) - min(cornerCount + redCount, amount-1)
-    const tc        = Math.min(cfg.targetCorners ?? 0, amount - 1);
-    const redExtra  = Math.min(cfg._redCount ?? 0, amount - 1 - tc); // RED blocks (not already corners)
-    const targetSum = ROWS + (amount - 1) - tc - redExtra;
+  if (Math.abs(ev - xv) === ROWS && connectionTypes) {
+    // Each corner-like connection (corner or horizontal) saves 1 from the sum (no shared row).
+    // Each vertical connection needs 2 extra (2 shared rows).
+    const verticalCount = connectionTypes.filter(t => t === 'vertical').length;
+    const targetSum = ROWS + (verticalCount * 2);
 
     const heights = [];
     let remaining = targetSum;
@@ -116,7 +116,21 @@ function makeHeights(cfg, rng) {
       const minLeft = amount - i - 1;
       const maxH    = Math.min(14, remaining - minLeft);
       const pool    = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
-      const picked  = pool.length ? rand(pool, rng) : 1;
+      
+      let picked;
+      if (pool.length) {
+        const progress = i / (amount - 1);
+        const avgH = targetSum / amount;
+        const expansionH = 1 + progress * (14 - 1);
+        const targetH = avgH + sizeScale * (expansionH - avgH);
+
+        const sortedPool = [...pool].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
+        const subPool = sortedPool.slice(0, 3);
+        picked = subPool.length ? rand(subPool, rng) : rand(pool, rng);
+      } else {
+        picked = 1;
+      }
+      
       heights.push(picked);
       remaining -= picked;
     }
@@ -126,35 +140,69 @@ function makeHeights(cfg, rng) {
   }
 
   // Heights are always drawn from the full pool (1–14).
-  // Volatility only controls Y-step behaviour, not block height.
-  const h = Array(amount).fill(null).map(() => rand(ALLOWED_HEIGHTS, rng));
-  if (volatility === 0) h.sort((a, b) => a - b); // ascending when flat
+  const h = Array(amount).fill(null).map((_, i) => {
+    const progress = i / (amount - 1);
+    const avgH = ROWS / amount;
+    const expansionH = 1 + progress * (14 - 1);
+    const targetH = avgH + sizeScale * (expansionH - avgH);
+
+    const pool = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
+    const subPool = pool.slice(0, 3);
+    return rand(subPool, rng);
+  });
+  h.sort((a, b) => a - b); // always ascending to support grow from small to large
   return h;
 }
 
-function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, isSpecialYellowRule = false) {
+function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, sizeScale = 0) {
   // Max width: up to 14, but leave at least 1 column for every other block
   const maxW    = Math.min(14, COLS - amount + 1);
   const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
 
   for (let attempt = 0; attempt < 1000; attempt++) {
-    const widths  = Array(amount).fill(0).map(() => rand(allowedW, rng));
+    const widths  = Array(amount).fill(0).map((_, i) => {
+      const progress = i / (amount - 1);
+      const avgW = COLS / amount;
+      const expansionW = 1 + progress * (maxW - 1);
+      const targetW = avgW + sizeScale * (expansionW - avgW);
+
+      const pool = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
+      const subPool = pool.slice(0, 3);
+      return subPool.length ? rand(subPool, rng) : rand(allowedW, rng);
+    });
+    widths.sort((a, b) => a - b);
     const overlaps = [0];
 
-    // If special yellow rule is active, allow some random overlap even if overlapArea is 0
-    const effectiveOverlapArea = (isSpecialYellowRule && overlapArea === 0)
-      ? rng() * 0.8
-      : overlapArea;
-
     for (let i = 1; i < amount; i++) {
-      if (effectiveOverlapArea > 0) {
-        // Amount-based: overlap scales with the narrower block's width and overlapArea (0–1)
-        const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
-        overlaps.push(Math.round(effectiveOverlapArea * maxOv));
+      const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
+      if (maxOv >= 2) {
+        const type = connectionTypes ? connectionTypes[i] : 'vertical';
+        if (type === 'horizontal') {
+          // Must have horizontal overlap
+          const effectiveOverlapArea = overlapArea === 0 ? 0.4 : overlapArea;
+          const overlapAmount = Math.ceil(effectiveOverlapArea * maxOv);
+          overlaps.push(Math.max(2, Math.min(overlapAmount, maxOv)));
+        } else {
+          // corner or vertical
+          // If overlapArea is 0, they MUST NOT overlap horizontally
+          if (overlapArea > 0 && rng() < overlapArea) {
+            const overlapAmount = Math.ceil(overlapArea * maxOv);
+            overlaps.push(Math.max(2, Math.min(overlapAmount, maxOv)));
+          } else {
+            overlaps.push(0);
+          }
+        }
       } else {
-        overlaps.push(0);
+        // If widths are too small to overlap, but it's a horizontal edge connection, fail this attempt
+        if (connectionTypes && connectionTypes[i] === 'horizontal') {
+          overlaps.push(-1);
+        } else {
+          overlaps.push(0);
+        }
       }
     }
+
+    if (overlaps.includes(-1)) continue;
 
     const span = widths.reduce((s, w, i) => s + w - overlaps[i], 0);
     if (span !== COLS) continue;
@@ -174,6 +222,7 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
   const widths = Array(amount).fill(base);
   let diff     = COLS - widths.reduce((a, b) => a + b, 0);
   for (let i = 0; diff > 0; i = (i + 1) % amount, diff--) widths[i]++;
+  widths.sort((a, b) => a - b);
   return { widths, overlaps: Array(amount).fill(0) };
 }
 
@@ -192,71 +241,54 @@ function generateSinglePatternRects(cfg, rng) {
   const isFullSpan = Math.abs(emergenceVal - exitVal) === ROWS;
   const ascending  = emergenceVal > exitVal;
 
-  // For isFullSpan + overlapArea > 0: pre-assign 🔴 RED connections for middle blocks.
-  // RED uses y = prevY − h (same position as corner-touch) but with X-overlap turns into
-  // a true horizontal edge strip (not just a point).
-  // Must happen BEFORE makeHeights so the height sum accounts for corner-like positions.
-  const isFullSpanRedBlocks = new Set();
-  if (isFullSpan && oc > 0) {
-    for (let i = 1; i < amount - 1; i++) {
-      if (rng() < 1 / 3) isFullSpanRedBlocks.add(i);
+  // Decide connectionTypes upfront for every adjacent pair
+  const connectionTypes = Array(amount).fill(null);
+  const targetCorners = cfg.targetCorners ?? 0;
+  const indices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const cornerIndices = new Set(indices.slice(0, Math.min(targetCorners, amount - 1)));
+
+  for (let i = 1; i < amount; i++) {
+    if (cornerIndices.has(i)) {
+      connectionTypes[i] = 'corner';
+    } else {
+      if (isFullSpan) {
+        connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
+      } else {
+        connectionTypes[i] = rng() < oc ? 'horizontal' : 'vertical';
+      }
     }
   }
 
-  const cfgAmt = { ...cfg, amount, _redCount: isFullSpanRedBlocks.size };
+  const cfgAmt = { ...cfg, amount, connectionTypes };
   const heights = makeHeights(cfgAmt, rng);
 
   // Flat only when both entry AND exit are at the same extreme edge
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const isSpecialYellowRule = (
-    amount === 3 &&
-    Math.abs(emergenceVal - exitVal) === ROWS &&
-    (cfg.targetCorners ?? 0) === 0 &&
-    (cfg.overlapChance ?? 0) === 0
-  );
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, isSpecialYellowRule);
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.sizeScale);
 
-  // Pre-select which adjacent pairs will be forced corner-meets
-  const cornerPairs   = new Set();
-  const targetCorners = cfg.targetCorners ?? 0;
-  if (targetCorners > 0 && amount > 1) {
-    const pairIndices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
-    for (let i = pairIndices.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [pairIndices[i], pairIndices[j]] = [pairIndices[j], pairIndices[i]];
-    }
-    pairIndices.slice(0, Math.min(targetCorners, pairIndices.length)).forEach(p => cornerPairs.add(p));
-  }
-
-  const volatility = cfg.volatility ?? 0;
+  const volatility = cfg.volatility ?? 0.5;
 
   // ── Baseline Y positions ─────────────────────────────────────────────────
   const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
   const exitY  = clamp(exitVal      - heights[amount-1], 0, ROWS - heights[amount-1]);
 
-  let baseline;
-  if (volatility > 0) {
-    // Staircase / candlestick: random walk from startY, exit block anchored to exitY.
-    // RNG calls happen in the same order regardless so seeds stay valid.
-    const maxStep = Math.max(1, Math.round(volatility * ROWS * 0.4));
-    baseline = [];
-    let currentY = startY;
-    for (let i = 0; i < amount; i++) {
-      if (i > 0) {
-        const step = Math.floor(rng() * (maxStep + 1));
-        const dir  = rng() < 0.5 ? 1 : -1;
-        currentY   = clamp(currentY + dir * step, 0, ROWS - heights[i]);
-      }
-      // Override last block's ideal position with the exit anchor
-      baseline.push(i === amount - 1 ? exitY : currentY);
+  const isTrendAscending = exitY < startY;
+  const baseline = heights.map((h, i) => {
+    const t = amount > 1 ? i / (amount - 1) : 0;
+    let u;
+    if (volatility < 0.5) {
+      const p = 1 + (1 - volatility / 0.5) * 2; // ranges from 1 to 3
+      u = isTrendAscending ? Math.pow(t, p) : 1 - Math.pow(1 - t, p);
+    } else {
+      const q = 1 + ((volatility - 0.5) / 0.5) * 2; // ranges from 1 to 3
+      u = isTrendAscending ? 1 - Math.pow(1 - t, q) : Math.pow(t, q);
     }
-  } else {
-    // No volatility: linearly interpolate top-Y from startY to exitY across blocks
-    baseline = heights.map((h, i) => {
-      const t = amount > 1 ? i / (amount - 1) : 0;
-      return clamp(Math.round(startY + t * (exitY - startY)), 0, ROWS - h);
-    });
-  }
+    return clamp(Math.round(startY + u * (exitY - startY)), 0, ROWS - h);
+  });
 
   // ── Y assignment ─────────────────────────────────────────────────────────
   const rects = [];
@@ -280,17 +312,16 @@ function generateSinglePatternRects(cfg, rng) {
 
     } else if (isFullSpan) {
       // ── Full-span staircase (start=0↔end=16):
-      //    🟡 cornerPairs blocks → corner-touch (0 shared rows): y = prevY−h / prevY+prevH
-      //    🔴 isFullSpanRedBlocks → same position as corner-touch; with X-overlap becomes horizontal edge
-      //    🔵 other middle blocks → edge-share (1 shared row):   y = prevY−h+1 / prevY+prevH−1
-      const isCorner = cornerPairs.has(i);
-      const isRed    = !isCorner && isFullSpanRedBlocks.has(i);
+      //    🟡 corner / horizontal → 0 shared rows: y = prevY−h / prevY+prevH
+      //    🔵 vertical            → 2 shared rows: y = prevY−h+2 / prevY+prevH−2
+      const type = connectionTypes[i];
+      const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
       y = ascending
-        ? ((isCorner || isRed) ? prevY - h     : prevY - h + 1)
-        : ((isCorner || isRed) ? prevY + prevH : prevY + prevH - 1);
+        ? (useHorizontalEdge ? prevY - h     : prevY - h + 2)
+        : (useHorizontalEdge ? prevY + prevH : prevY + prevH - 2);
 
-    } else if (cornerPairs.has(i)) {
-      // ── Type 2 (Corner Connect): corner touch, direction randomised
+    } else if (connectionTypes[i] === 'corner' || connectionTypes[i] === 'horizontal') {
+      // ── Type 2 (Corner/Horizontal Connect): touch flush horizontally, direction randomised
       const above = prevY - h;
       const below = prevY + prevH;
       const okAbove = above >= 0;
@@ -315,8 +346,8 @@ function generateSinglePatternRects(cfg, rng) {
       const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
       const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
       // BLUE range: shared-row positions, intersected with corridor
-      const edgeLo = clamp(prevY - h + 1, 0, ROWS - h);
-      const edgeHi = clamp(prevY + prevH - 1, 0, ROWS - h);
+      const edgeLo = clamp(prevY - h + 2, 0, ROWS - h);
+      const edgeHi = clamp(prevY + prevH - 2, 0, ROWS - h);
       const lo = Math.max(edgeLo, corridorLo);
       const hi = Math.min(edgeHi, corridorHi);
       const blueRange = lo <= hi ? { lo, hi } : { lo: edgeLo, hi: edgeHi };
@@ -380,12 +411,6 @@ function isValidPattern(rects, cfg) {
       ? cfg.emergenceVal
       : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
   const exitVal = cfg.exitVal ?? emergenceVal;
-  const isSpecialYellowRule = (
-    amount === 3 &&
-    Math.abs(emergenceVal - exitVal) === ROWS &&
-    (cfg.targetCorners ?? 0) === 0 &&
-    (cfg.overlapChance ?? 0) === 0
-  );
 
   // 1. Verify start and end heights / anchors
   const expectedStartY = clamp(emergenceVal - rects[0].h, 0, ROWS - rects[0].h);
@@ -402,25 +427,39 @@ function isValidPattern(rects, cfg) {
     const yB = rects[i].y;
     const hB = rects[i].h;
 
-    const overlaps = (yA <= yB + hB - 1) && (yB <= yA + hA - 1);
-    const isCornerMeet = (yA === yB + hB) || (yB === yA + hA);
+    const overlapX = Math.max(0, Math.min(rects[i - 1].x + rects[i - 1].w, rects[i].x + rects[i].w) - Math.max(rects[i - 1].x, rects[i].x));
+    const overlapY = Math.max(0, Math.min(rects[i - 1].y + rects[i - 1].h, rects[i].y + rects[i].h) - Math.max(rects[i - 1].y, rects[i].y));
+    const overlaps = overlapY > 0;
+    const isCornerMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX === 0);
+    const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= 2);
 
     if (isCornerMeet) {
       actualCorners++;
     }
 
-    // Adjacent blocks must connect (either overlap or corner-touch)
-    if (!overlaps && !isCornerMeet) {
+    // Adjacent blocks must connect (either overlap >= 2, corner-touch, or horizontal edge >= 2)
+    const isConnected = isCornerMeet || isHorizontalEdgeMeet || (overlapY >= 2);
+    if (!isConnected) {
       return false;
     }
   }
 
   // 3. Validate corners count matches parameters
-  if (isSpecialYellowRule) {
-    if (actualCorners !== 0) return false;
-  } else {
-    const targetCorners = cfg.targetCorners ?? 0;
-    if (actualCorners !== targetCorners) return false;
+  const targetCorners = cfg.targetCorners ?? 0;
+  if (actualCorners !== targetCorners) return false;
+
+  // 3.5 Enforce zero 2D intersection area if overlap setting is 0
+  const overlapChance = cfg.overlapChance ?? 0;
+  if (overlapChance === 0) {
+    for (let i = 1; i < amount; i++) {
+      const rA = rects[i - 1];
+      const rB = rects[i];
+      const overlapX = Math.max(0, Math.min(rA.x + rA.w, rB.x + rB.w) - Math.max(rA.x, rB.x));
+      const overlapY = Math.max(0, Math.min(rA.y + rA.h, rB.y + rB.h) - Math.max(rA.y, rB.y));
+      if (overlapX * overlapY > 0) {
+        return false;
+      }
+    }
   }
 
   // 4. Duplicate dimensions check for adjacent edge-connected blocks
@@ -430,6 +469,17 @@ function isValidPattern(rects, cfg) {
     const overlaps = (rA.y <= rB.y + rB.h - 1) && (rB.y <= rA.y + rA.h - 1);
     if (overlaps && rA.w === rB.w && rA.h === rB.h) {
       return false;
+    }
+  }
+
+  // 5. Enforce no equal top Y or bottom Y for adjacent blocks when startHeight !== endHeight
+  if (emergenceVal !== exitVal) {
+    for (let i = 1; i < amount; i++) {
+      const rA = rects[i - 1];
+      const rB = rects[i];
+      if (rA.y === rB.y || (rA.y + rA.h === rB.y + rB.h)) {
+        return false;
+      }
     }
   }
 
@@ -621,15 +671,17 @@ function bytesToHex(r, g, b) {
 }
 
 export function encodeSeed(seed, params, colorA, colorB) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 } = params;
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5 } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
   // byte 5: low nibble = startHeight/4 (0-4), high nibble = endHeight/4 (0-4)
   // old seeds had high nibble = 0 → endHeight = 0 (backward-compatible)
   const heightsByte = (startHeight / 4) | ((endHeight / 4) << 4);
+  // Pack sizeScale (0-10) in high nibble of cornerChance byte (b[7]).
+  const cornerChanceByte = cornerChance | (sizeScale << 4);
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
-    complexity, heightsByte, overlapChance, cornerChance, volatility,
+    complexity, heightsByte, overlapChance, cornerChanceByte, volatility,
     ar, ag, ab, br, bg, bb,
   ]);
   return bytesToB62(buf);
@@ -648,14 +700,15 @@ export function decodeSeed(str) {
       startHeight,
       endHeight,
       overlapChance: b[6],
-      cornerChance:  b[7],
+      cornerChance:  b[7] & 0xF,
+      sizeScale:     (b[7] >> 4) & 0xF,
       volatility:    b[8],
     };
     // Basic range validation
     if (params.complexity < 1 || params.complexity > 4) return null;
     if (startHeight > 16 || startHeight % 4 !== 0) return null;
     if (endHeight   > 16 || endHeight   % 4 !== 0) return null;
-    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10) return null;
+    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10 || params.sizeScale > 10) return null;
     const colorA = bytesToHex(b[9], b[10], b[11]);
     const colorB = bytesToHex(b[12], b[13], b[14]);
     return { seed, params, colorA, colorB };

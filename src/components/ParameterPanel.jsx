@@ -108,7 +108,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance } = params
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, sizeScale } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
@@ -203,20 +203,29 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Trend Volatility ───────────────────────────────────────── */}
       <ParamRow
         label="Trend Volatility"
-        hint="Staircase / candlestick: Y-step between blocks"
+        hint="Bends the staircase trend curve"
       >
         <ParamSlider
-          value={params.volatility ?? 0}
+          value={params.volatility ?? 5}
           min={0}
           max={10}
           onChange={v => set('volatility', v)}
-          formatLabel={v => v === 0 ? 'Off' : `${v * 10}%`}
+          formatLabel={v => `${v * 10}%`}
         />
-        {(params.volatility ?? 0) > 0 && (
-          <p className="text-[10px] text-slate-600 mt-1 leading-tight">
-            Y-step ±{Math.max(1, Math.round((params.volatility ?? 0) * 0.4 * ROWS))} rows per block
-          </p>
-        )}
+      </ParamRow>
+
+      {/* ── Block Scale ─────────────────────────────────────────────── */}
+      <ParamRow
+        label="Block Scale"
+        hint="Controls block size expansion (small to large)"
+      >
+        <ParamSlider
+          value={params.sizeScale ?? 5}
+          min={0}
+          max={10}
+          onChange={v => set('sizeScale', v)}
+          formatLabel={v => `${v * 10}%`}
+        />
       </ParamRow>
 
       {/* ── Color Palette ──────────────────────────────────────────── */}
