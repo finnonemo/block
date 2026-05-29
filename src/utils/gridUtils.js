@@ -132,7 +132,7 @@ function makeHeights(cfg, rng) {
   return h;
 }
 
-function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false) {
+function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, isSpecialYellowRule = false) {
   // Max width: up to 14, but leave at least 1 column for every other block
   const maxW    = Math.min(14, COLS - amount + 1);
   const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
@@ -141,11 +141,16 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false) 
     const widths  = Array(amount).fill(0).map(() => rand(allowedW, rng));
     const overlaps = [0];
 
+    // If special yellow rule is active, allow some random overlap even if overlapArea is 0
+    const effectiveOverlapArea = (isSpecialYellowRule && overlapArea === 0)
+      ? rng() * 0.8
+      : overlapArea;
+
     for (let i = 1; i < amount; i++) {
-      if (overlapArea > 0) {
+      if (effectiveOverlapArea > 0) {
         // Amount-based: overlap scales with the narrower block's width and overlapArea (0–1)
         const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
-        overlaps.push(Math.round(overlapArea * maxOv));
+        overlaps.push(Math.round(effectiveOverlapArea * maxOv));
       } else {
         overlaps.push(0);
       }
@@ -174,7 +179,7 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false) 
 
 // ─── Public generation ───────────────────────────────────────────────────────
 
-export function generatePatternRects(cfg, rng = Math.random) {
+function generateSinglePatternRects(cfg, rng) {
   const amount = Math.max(3, cfg.amount ?? rand(cfg.amountOpts, rng));
 
   // Hoist anchor / span variables so they're available before makeHeights
@@ -203,7 +208,13 @@ export function generatePatternRects(cfg, rng = Math.random) {
 
   // Flat only when both entry AND exit are at the same extreme edge
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline);
+  const isSpecialYellowRule = (
+    amount === 3 &&
+    Math.abs(emergenceVal - exitVal) === ROWS &&
+    (cfg.targetCorners ?? 0) === 0 &&
+    (cfg.overlapChance ?? 0) === 0
+  );
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, isSpecialYellowRule);
 
   // Pre-select which adjacent pairs will be forced corner-meets
   const cornerPairs   = new Set();
@@ -358,6 +369,82 @@ export function generatePatternRects(cfg, rng = Math.random) {
   }
 
   return rects;
+}
+
+function isValidPattern(rects, cfg) {
+  const amount = rects.length;
+  if (amount < 3) return false;
+
+  const emergenceVal =
+    typeof cfg.emergenceVal === 'number'
+      ? cfg.emergenceVal
+      : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
+  const exitVal = cfg.exitVal ?? emergenceVal;
+  const isSpecialYellowRule = (
+    amount === 3 &&
+    Math.abs(emergenceVal - exitVal) === ROWS &&
+    (cfg.targetCorners ?? 0) === 0 &&
+    (cfg.overlapChance ?? 0) === 0
+  );
+
+  // 1. Verify start and end heights / anchors
+  const expectedStartY = clamp(emergenceVal - rects[0].h, 0, ROWS - rects[0].h);
+  if (rects[0].y !== expectedStartY) return false;
+
+  const expectedExitY = clamp(exitVal - rects[amount - 1].h, 0, ROWS - rects[amount - 1].h);
+  if (rects[amount - 1].y !== expectedExitY) return false;
+
+  // 2. Count actual corner connections and check connectivity/gaps
+  let actualCorners = 0;
+  for (let i = 1; i < amount; i++) {
+    const yA = rects[i - 1].y;
+    const hA = rects[i - 1].h;
+    const yB = rects[i].y;
+    const hB = rects[i].h;
+
+    const overlaps = (yA <= yB + hB - 1) && (yB <= yA + hA - 1);
+    const isCornerMeet = (yA === yB + hB) || (yB === yA + hA);
+
+    if (isCornerMeet) {
+      actualCorners++;
+    }
+
+    // Adjacent blocks must connect (either overlap or corner-touch)
+    if (!overlaps && !isCornerMeet) {
+      return false;
+    }
+  }
+
+  // 3. Validate corners count matches parameters
+  if (isSpecialYellowRule) {
+    if (actualCorners !== 0) return false;
+  } else {
+    const targetCorners = cfg.targetCorners ?? 0;
+    if (actualCorners !== targetCorners) return false;
+  }
+
+  // 4. Duplicate dimensions check for adjacent edge-connected blocks
+  for (let i = 1; i < amount; i++) {
+    const rA = rects[i - 1];
+    const rB = rects[i];
+    const overlaps = (rA.y <= rB.y + rB.h - 1) && (rB.y <= rA.y + rA.h - 1);
+    if (overlaps && rA.w === rB.w && rA.h === rB.h) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function generatePatternRects(cfg, rng = Math.random) {
+  let rects = null;
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    rects = generateSinglePatternRects(cfg, rng);
+    if (isValidPattern(rects, cfg)) {
+      return rects;
+    }
+  }
+  return rects; // fallback
 }
 
 export function syncBlocks(rects) {

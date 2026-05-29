@@ -108,7 +108,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 } = params
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
