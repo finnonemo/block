@@ -217,6 +217,17 @@ export function generatePatternRects(cfg) {
     }
 
     y = clamp(y, 0, ROWS - h); // final grid-bounds safety
+
+    // Enforce: adjacent blocks must never share the same top Y
+    if (prevY !== null && y === prevY) {
+      const down = y + 1;
+      const up   = y - 1;
+      // prefer down; require it stays in grid and still shares an edge (not just corner)
+      if (down <= ROWS - h && down < prevY + prevH) y = down;
+      else if (up >= 0 && up + h > prevY)           y = up;
+      // else: pathological single-cell case — accept same Y rather than break grid
+    }
+
     rects.push({ x, y, w, h });
     prevY = y;
     prevH = h;

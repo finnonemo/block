@@ -86,9 +86,9 @@ export default function App() {
   }, [rectangles, colorA, colorB])
 
   return (
-    <div className="h-screen bg-[#07101e] text-slate-200 flex flex-col overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-[#07101e] text-slate-200 flex flex-col md:overflow-hidden">
       {/* Header */}
-      <header className="flex items-center px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+      <header className="flex items-center px-4 md:px-6 h-12 md:h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-md bg-[#50cfff] flex items-center justify-center shrink-0">
             <Layers size={14} className="text-[#01172b]" strokeWidth={2.5} />
@@ -101,10 +101,23 @@ export default function App() {
       </header>
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden md:min-h-0">
 
-        {/* Sidebar */}
-        <aside className="w-72 shrink-0 bg-[#0a1628] border-r border-[#1a2a3a] flex flex-col overflow-hidden">
+        {/* Canvas — on mobile: first, full width; on desktop: fills remaining space */}
+        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-[#07101e] flex items-center justify-center p-3 md:p-6
+                         h-[min(90vw,480px)] md:h-auto">
+          <CanvasArea
+            blocks={blocks}
+            rectangles={rectangles}
+            colorA={colorA}
+            colorB={colorB}
+            onPaint={handlePaint}
+          />
+        </main>
+
+        {/* Sidebar — on mobile: second, full width, capped height; on desktop: fixed left column */}
+        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-[#0a1628] border-t md:border-t-0 md:border-r border-[#1a2a3a] flex flex-col
+                          max-h-[60vh] md:max-h-none md:overflow-hidden">
 
           {/* Scrollable content */}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
@@ -188,16 +201,6 @@ export default function App() {
 
         </aside>
 
-        {/* Canvas — fills remaining space, no overflow */}
-        <main className="flex-1 min-h-0 overflow-hidden bg-[#07101e] flex items-center justify-center p-6">
-          <CanvasArea
-            blocks={blocks}
-            rectangles={rectangles}
-            colorA={colorA}
-            colorB={colorB}
-            onPaint={handlePaint}
-          />
-        </main>
       </div>
     </div>
   )

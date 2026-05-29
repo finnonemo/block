@@ -15,7 +15,7 @@ function SegGroup({ options, value, onChange, disabled = false, cols }) {
           disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'flex flex-col items-center justify-center min-w-[40px] h-9 px-2 rounded-md text-xs font-semibold transition-all border',
+            'flex flex-col items-center justify-center min-w-[40px] h-11 md:h-9 px-2 rounded-md text-xs font-semibold transition-all border',
             value === opt.value
               ? 'bg-[#50cfff] text-[#01172b] border-[#50cfff] shadow-sm'
               : 'bg-[#0c1926] text-slate-400 border-[#1e2d3d] hover:border-[#3a4a5a] hover:text-slate-200',
@@ -46,7 +46,7 @@ function ParamSlider({ value, min, max, step = 1, onChange, formatLabel }) {
         step={step}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="flex-1 h-1.5 accent-[#50cfff] cursor-pointer"
+        className="flex-1 h-4 md:h-1.5 accent-[#50cfff] cursor-pointer touch-manipulation"
         style={{ accentColor: '#50cfff' }}
       />
       <span className="text-xs font-mono text-[#50cfff] w-10 text-right shrink-0">
@@ -85,14 +85,14 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[10px] text-slate-600 w-14 flex-shrink-0 text-right">{family}</span>
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
         {colors.map(hex => (
           <button
             key={hex}
             title={hex}
             onClick={() => onPick(hex)}
             className={cn(
-              'w-5 h-5 rounded-sm border transition-all hover:scale-110',
+              'w-6 h-6 md:w-5 md:h-5 rounded-sm border transition-all hover:scale-110',
               activeColor === hex
                 ? 'border-[#50cfff] shadow-[0_0_0_1px_#50cfff]'
                 : 'border-white/10 hover:border-white/30'
