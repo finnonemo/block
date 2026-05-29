@@ -169,10 +169,10 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
-      {/* ── Overlap Chance ─────────────────────────────────────────── */}
+      {/* ── Overlap Area ───────────────────────────────────────────── */}
       <ParamRow
-        label="Overlap Chance"
-        hint="Horizontal overlap between adjacent groups"
+        label="Overlap Area"
+        hint="How much each block overlaps the next horizontally"
       >
         <ParamSlider
           value={overlapChance}
@@ -203,7 +203,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Trend Volatility ───────────────────────────────────────── */}
       <ParamRow
         label="Trend Volatility"
-        hint="Controls block height (up to 14) and Y-step between blocks"
+        hint="Staircase / candlestick: Y-step between blocks"
       >
         <ParamSlider
           value={params.volatility ?? 0}
@@ -214,7 +214,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
         {(params.volatility ?? 0) > 0 && (
           <p className="text-[10px] text-slate-600 mt-1 leading-tight">
-            Max block height {Math.min(14, Math.max(2, Math.round((params.volatility / 10) * 14)))} · Y-step ±{Math.max(1, Math.round((params.volatility ?? 0) * 0.4 * ROWS))} rows
+            Y-step ±{Math.max(1, Math.round((params.volatility ?? 0) * 0.4 * ROWS))} rows per block
           </p>
         )}
       </ParamRow>

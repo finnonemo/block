@@ -367,7 +367,7 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
             <span>Complexity <span className="text-slate-200">{preview.params.complexity}</span></span>
             <span>Start <span className="text-slate-200">{preview.params.startHeight}</span></span>
-            <span>Overlap <span className="text-slate-200">{preview.params.overlapChance * 10}%</span></span>
+            <span>Overlap Area <span className="text-slate-200">{preview.params.overlapChance * 10}%</span></span>
             <span>Corner <span className="text-slate-200">{preview.params.cornerChance}</span></span>
             <span>Volatility <span className="text-slate-200">{preview.params.volatility * 10}%</span></span>
           </div>

@@ -98,20 +98,41 @@ function clamp(v, lo, hi) {
 function makeHeights(cfg, rng) {
   const { amount, volatility = 0 } = cfg;
 
-  if (volatility === 0) {
-    // No volatility: all blocks the same moderate height
-    const pool = ALLOWED_HEIGHTS.filter(h => h >= 2 && h <= 6);
-    const h = rand(pool, rng);
-    return Array(amount).fill(h);
+  // Full-span staircase (start=0 end=16 or start=16 end=0):
+  // heights must sum to exactly ROWS so every block tiles the full height with no gaps.
+  const ev = typeof cfg.emergenceVal === 'number' ? cfg.emergenceVal : ROWS;
+  const xv = typeof cfg.exitVal      === 'number' ? cfg.exitVal      : ev;
+  if (Math.abs(ev - xv) === ROWS) {
+    // Each corner-like connection (corner or RED) saves 1 from the sum (no shared row).
+    // Each edge-share connection needs 1 extra (1 shared row).
+    // sum = ROWS + (amount-1) - min(cornerCount + redCount, amount-1)
+    const tc        = Math.min(cfg.targetCorners ?? 0, amount - 1);
+    const redExtra  = Math.min(cfg._redCount ?? 0, amount - 1 - tc); // RED blocks (not already corners)
+    const targetSum = ROWS + (amount - 1) - tc - redExtra;
+
+    const heights = [];
+    let remaining = targetSum;
+    for (let i = 0; i < amount - 1; i++) {
+      const minLeft = amount - i - 1;
+      const maxH    = Math.min(14, remaining - minLeft);
+      const pool    = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
+      const picked  = pool.length ? rand(pool, rng) : 1;
+      heights.push(picked);
+      remaining -= picked;
+    }
+    heights.push(clamp(remaining, 1, 14));
+    heights.sort((a, b) => a - b);
+    return heights;
   }
 
-  // Volatility scales the height ceiling: 0+ → min 2, 1.0 → max 14
-  const maxH  = Math.min(14, Math.max(2, Math.round(volatility * 14)));
-  const pool  = ALLOWED_HEIGHTS.filter(h => h <= maxH);
-  return Array(amount).fill(null).map(() => rand(pool.length ? pool : ALLOWED_HEIGHTS, rng));
+  // Heights are always drawn from the full pool (1–14).
+  // Volatility only controls Y-step behaviour, not block height.
+  const h = Array(amount).fill(null).map(() => rand(ALLOWED_HEIGHTS, rng));
+  if (volatility === 0) h.sort((a, b) => a - b); // ascending when flat
+  return h;
 }
 
-function makeWidths(heights, amount, overlapChance, rng, strictNoDupDims = false) {
+function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false) {
   // Max width: up to 14, but leave at least 1 column for every other block
   const maxW    = Math.min(14, COLS - amount + 1);
   const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
@@ -121,9 +142,10 @@ function makeWidths(heights, amount, overlapChance, rng, strictNoDupDims = false
     const overlaps = [0];
 
     for (let i = 1; i < amount; i++) {
-      if (overlapChance > 0 && rng() < overlapChance) {
-        const maxOv = Math.min(2, Math.min(widths[i - 1], widths[i]) - 1);
-        overlaps.push(maxOv > 0 ? Math.floor(rng() * (maxOv + 1)) : 0);
+      if (overlapArea > 0) {
+        // Amount-based: overlap scales with the narrower block's width and overlapArea (0–1)
+        const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
+        overlaps.push(Math.round(overlapArea * maxOv));
       } else {
         overlaps.push(0);
       }
@@ -153,17 +175,34 @@ function makeWidths(heights, amount, overlapChance, rng, strictNoDupDims = false
 // ─── Public generation ───────────────────────────────────────────────────────
 
 export function generatePatternRects(cfg, rng = Math.random) {
-  const amount   = Math.max(3, cfg.amount ?? rand(cfg.amountOpts, rng));
-  const cfgAmt   = { ...cfg, amount };
-  const heights  = makeHeights(cfgAmt, rng);
-  // Resolve emergence Y anchor
+  const amount = Math.max(3, cfg.amount ?? rand(cfg.amountOpts, rng));
+
+  // Hoist anchor / span variables so they're available before makeHeights
   const emergenceVal =
     typeof cfg.emergenceVal === 'number'
       ? cfg.emergenceVal
       : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
+  const oc         = cfg.overlapChance ?? 0;
+  const exitVal    = cfg.exitVal ?? emergenceVal;
+  const isFullSpan = Math.abs(emergenceVal - exitVal) === ROWS;
+  const ascending  = emergenceVal > exitVal;
 
-  const oc           = cfg.overlapChance ?? 0;
-  const flatBaseline = emergenceVal === 0 || emergenceVal === ROWS;
+  // For isFullSpan + overlapArea > 0: pre-assign 🔴 RED connections for middle blocks.
+  // RED uses y = prevY − h (same position as corner-touch) but with X-overlap turns into
+  // a true horizontal edge strip (not just a point).
+  // Must happen BEFORE makeHeights so the height sum accounts for corner-like positions.
+  const isFullSpanRedBlocks = new Set();
+  if (isFullSpan && oc > 0) {
+    for (let i = 1; i < amount - 1; i++) {
+      if (rng() < 1 / 3) isFullSpanRedBlocks.add(i);
+    }
+  }
+
+  const cfgAmt = { ...cfg, amount, _redCount: isFullSpanRedBlocks.size };
+  const heights = makeHeights(cfgAmt, rng);
+
+  // Flat only when both entry AND exit are at the same extreme edge
+  const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
   const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline);
 
   // Pre-select which adjacent pairs will be forced corner-meets
@@ -178,8 +217,7 @@ export function generatePatternRects(cfg, rng = Math.random) {
     pairIndices.slice(0, Math.min(targetCorners, pairIndices.length)).forEach(p => cornerPairs.add(p));
   }
 
-  const volatility  = cfg.volatility ?? 0;
-  const exitVal     = cfg.exitVal ?? emergenceVal;
+  const volatility = cfg.volatility ?? 0;
 
   // ── Baseline Y positions ─────────────────────────────────────────────────
   const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
@@ -219,47 +257,99 @@ export function generatePatternRects(cfg, rng = Math.random) {
     const h = heights[i], w = widths[i];
     const idealY = baseline[i];
     let y;
+    let verticalEdge = false; // set true when same-Y is intentional (Type 1 Sub-A)
 
     if (prevY === null) {
-      // ── First block: anchor at baseline start
+      // ── Block 0: anchored to startY
       y = idealY;
 
-    } else if (cornerPairs.has(i)) {
-      // ── Forced corner (from cornerChance)
-      const below   = prevY + prevH;
-      const above   = prevY - h;
-      const okBelow = below + h <= ROWS;
-      const okAbove = above >= 0;
-      if (okBelow && okAbove) y = rng() < 0.5 ? below : above;
-      else if (okBelow)       y = below;
-      else if (okAbove)       y = above;
-      else {
-        const lo = prevY - h + 1, hi = prevY + prevH - 1;
-        y = clamp(idealY, lo, hi);
-      }
+    } else if (i === amount - 1) {
+      // ── Block N-1 (last): anchored to exitY (End Height)
+      y = exitY;
 
-    } else if (volatility > 0) {
-      // ── Staircase / candlestick: random-walked Y, clamped to guarantee connection
-      //    [prevY - h] = top-corner touch  |  (prevY-h, prevY+prevH) = edge  |  [prevY + prevH] = bottom-corner touch
-      y = clamp(idealY, prevY - h, prevY + prevH);
+    } else if (isFullSpan) {
+      // ── Full-span staircase (start=0↔end=16):
+      //    🟡 cornerPairs blocks → corner-touch (0 shared rows): y = prevY−h / prevY+prevH
+      //    🔴 isFullSpanRedBlocks → same position as corner-touch; with X-overlap becomes horizontal edge
+      //    🔵 other middle blocks → edge-share (1 shared row):   y = prevY−h+1 / prevY+prevH−1
+      const isCorner = cornerPairs.has(i);
+      const isRed    = !isCorner && isFullSpanRedBlocks.has(i);
+      y = ascending
+        ? ((isCorner || isRed) ? prevY - h     : prevY - h + 1)
+        : ((isCorner || isRed) ? prevY + prevH : prevY + prevH - 1);
+
+    } else if (cornerPairs.has(i)) {
+      // ── Type 2 (Corner Connect): corner touch, direction randomised
+      const above = prevY - h;
+      const below = prevY + prevH;
+      const okAbove = above >= 0;
+      const okBelow = below + h <= ROWS;
+      if (okAbove && okBelow) y = rng() < 0.5 ? above : below;
+      else if (okAbove)       y = above;
+      else if (okBelow)       y = below;
+      else { y = clamp(idealY, prevY - h + 1, prevY + prevH - 1); }
 
     } else {
-      // ── FOLLOW: move toward idealY, constrained by overlap connectivity
-      const lo = prevY - h + 1, hi = prevY + prevH - 1;
-      y = clamp(idealY, lo, hi);
+      // ── Middle blocks: fill the gap between block 0 and block N-1.
+      //    Three connection types per block anatomy (Figma 106:274):
+      //
+      //    🔵 BLUE  (Left/Right vertical edge): blocks share a strip at their X-boundary
+      //             → y ∈ [prevY−h+1, prevY+prevH−1]  (shared rows create the vertical strip)
+      //    🔴 RED   (Top/Bottom horizontal edge): one block's Top meets prev's Bottom (or vice-versa)
+      //             → y = prevY−h (current Bottom = prev Top)  — only a true edge when X-overlap > 0
+      //    🟡 YELLOW (Corner): corner point touch — handled separately by cornerPairs
+      //
+      //    Corridor ensures exitY is still reachable with remaining block heights.
+      const remainingH = heights.slice(i + 1).reduce((a, b) => a + b, 0);
+      const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
+      const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
+      // BLUE range: shared-row positions, intersected with corridor
+      const edgeLo = clamp(prevY - h + 1, 0, ROWS - h);
+      const edgeHi = clamp(prevY + prevH - 1, 0, ROWS - h);
+      const lo = Math.max(edgeLo, corridorLo);
+      const hi = Math.min(edgeHi, corridorHi);
+      const blueRange = lo <= hi ? { lo, hi } : { lo: edgeLo, hi: edgeHi };
+      // RED position: current block's Bottom touches prev block's Top (ascending)
+      const redY      = prevY - h;
+      const canRed    = oc > 0 && redY >= 0 && redY >= corridorLo && redY <= corridorHi;
+
+      const r = rng();
+      if (r < 1 / 3) {
+        // 🔴 RED (Horizontal edge): current Bottom = prev Top.
+        // With X-overlap this is a true horizontal edge strip; without overlap it degrades
+        // to a corner point — so only fire when overlapArea > 0 (oc > 0).
+        // Falls back to BLUE Sub-B when RED is not feasible.
+        y = canRed ? redY : clamp(idealY, blueRange.lo, blueRange.hi);
+
+      } else if (r < 2 / 3) {
+        // 🔵 BLUE Sub-A (Vertical edge, same top-Y):
+        // Blocks start at the same Y → their Left/Right boundary forms a vertical strip
+        // whose height = min(h, prevH). L-shaped junction when heights differ.
+        // Only apply when h ≠ prevH (equal heights → pure vertical, no horizontal step).
+        if (h !== prevH && prevY >= blueRange.lo && prevY <= blueRange.hi) {
+          y = prevY;
+          verticalEdge = true; // intentional same-Y — skip the no-same-Y nudge
+        } else {
+          y = clamp(idealY, blueRange.lo, blueRange.hi);
+        }
+
+      } else {
+        // 🔵 BLUE Sub-B (Vertical edge, offset Y):
+        // y-offset creates an L-shaped junction with both a vertical strip (shared rows)
+        // and a horizontal ledge (height difference at the step).
+        y = clamp(idealY, blueRange.lo, blueRange.hi);
+      }
     }
 
     y = clamp(y, 0, ROWS - h); // final grid-bounds safety
 
-    // Enforce: adjacent blocks must never share the same top Y
-    // Skip when flatBaseline (start height 0 or 16) — flat alignment is intentional there.
-    if (!flatBaseline && prevY !== null && y === prevY) {
+    // Enforce no-same-Y — skip when intentional (vertical edge, isFullSpan, last block, flatBaseline)
+    const isLastBlock = (i === amount - 1);
+    if (!flatBaseline && !isLastBlock && !isFullSpan && !verticalEdge && prevY !== null && y === prevY) {
       const down = y + 1;
       const up   = y - 1;
-      // prefer down; require it stays in grid and still shares an edge (not just corner)
       if (down <= ROWS - h && down < prevY + prevH) y = down;
       else if (up >= 0 && up + h > prevY)           y = up;
-      // else: pathological single-cell case — accept same Y rather than break grid
     }
 
     rects.push({ x, y, w, h });
