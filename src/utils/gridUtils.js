@@ -57,11 +57,12 @@ export const DEFAULT_PARAMS = {
   overlapChance: 0,   // 0–10 integer (maps to 0–100%)
   cornerChance:  0,   // 0–3 exact count
   volatility:    5,   // 0–10 integer (maps to 0–100% curve bending, default 50%)
-  sizeScale:     5,   // 0–10 integer (maps to 0–100% block scaling, default 50%)
+  widthScale:    5,   // 0–10 integer (maps to 0–100% block width variance, default 50%)
+  sizeScale:     5,   // 0–10 integer (maps to 0–100% block square scaling, default 50%)
 };
 
 // Build generation config from the UI parameters
-export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5 }) {
+export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, widthScale = 5, sizeScale = 5 }) {
   const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
   const oc   = overlapChance / 10;
 
@@ -72,6 +73,7 @@ export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, 
     overlapChance: oc,
     targetCorners: cornerChance,
     volatility:    volatility / 10,
+    widthScale:    widthScale / 10,
     sizeScale:     sizeScale / 10,
   };
 }
@@ -98,7 +100,7 @@ function clamp(v, lo, hi) {
 }
 
 function makeHeights(cfg, rng) {
-  const { amount, volatility = 0, connectionTypes, sizeScale = 0 } = cfg;
+  const { amount, volatility = 0, connectionTypes, widthScale = 0 } = cfg;
 
   // Staircase trend (start height !== end height):
   // heights must sum to Math.abs(ev - xv) + shared rows so they tile the trend exactly.
@@ -123,7 +125,7 @@ function makeHeights(cfg, rng) {
         const progress = i / (amount - 1);
         const avgH = targetSum / (amount - 1);
         const expansionH = 1 + progress * (14 - 1);
-        const targetH = avgH + sizeScale * (expansionH - avgH);
+        const targetH = avgH + widthScale * (expansionH - avgH);
 
         const sortedPool = [...pool].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
         const subPool = sortedPool.slice(0, 3);
@@ -142,7 +144,7 @@ function makeHeights(cfg, rng) {
     const progress = 1;
     const avgH = targetSum / (amount - 1);
     const expansionH = 14;
-    const targetH = avgH + sizeScale * (expansionH - avgH);
+    const targetH = avgH + widthScale * (expansionH - avgH);
     const pool = ALLOWED_HEIGHTS
       .filter(h => h >= minLastH)
       .sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
@@ -158,7 +160,7 @@ function makeHeights(cfg, rng) {
     const progress = i / (amount - 1);
     const avgH = ROWS / amount;
     const expansionH = 1 + progress * (14 - 1);
-    const targetH = avgH + sizeScale * (expansionH - avgH);
+    const targetH = avgH + widthScale * (expansionH - avgH);
 
     const pool = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
     const subPool = pool.slice(0, 3);
