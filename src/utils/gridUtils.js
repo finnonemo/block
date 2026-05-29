@@ -170,7 +170,7 @@ function makeHeights(cfg, rng) {
   return h;
 }
 
-function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, sizeScale = 0) {
+function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, widthScale = 0, sizeScale = 0) {
   // Max width: up to 14, but leave at least 1 column for every other block
   const maxW    = Math.min(14, COLS - amount + 1);
   const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
@@ -180,7 +180,8 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
       const progress = i / (amount - 1);
       const avgW = COLS / amount;
       const expansionW = 1 + progress * (maxW - 1);
-      const targetW = avgW + sizeScale * (expansionW - avgW);
+      const targetW_trend = avgW + widthScale * (expansionW - avgW);
+      const targetW = targetW_trend + sizeScale * (heights[i] - targetW_trend);
 
       const pool = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
       const subPool = pool.slice(0, 3);
@@ -285,7 +286,7 @@ function generateSinglePatternRects(cfg, rng) {
 
   // Flat only when both entry AND exit are at the same extreme edge
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.sizeScale);
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.widthScale, cfg.sizeScale);
 
   const volatility = cfg.volatility ?? 0.5;
 
@@ -695,7 +696,7 @@ function bytesToHex(r, g, b) {
 }
 
 export function encodeSeed(seed, params, colorA, colorB) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5 } = params;
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, widthScale = 5, sizeScale = 5 } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
   // byte 5: low nibble = startHeight/4 (0-4), high nibble = endHeight/4 (0-4)
@@ -703,9 +704,11 @@ export function encodeSeed(seed, params, colorA, colorB) {
   const heightsByte = (startHeight / 4) | ((endHeight / 4) << 4);
   // Pack sizeScale (0-10) in high nibble of cornerChance byte (b[7]).
   const cornerChanceByte = cornerChance | (sizeScale << 4);
+  // Pack widthScale (0-10) in high nibble of volatility byte (b[8]) using value + 1 to distinguish from 0 in old seeds.
+  const volatilityByte = (volatility & 0xF) | (((widthScale + 1) & 0xF) << 4);
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
-    complexity, heightsByte, overlapChance, cornerChanceByte, volatility,
+    complexity, heightsByte, overlapChance, cornerChanceByte, volatilityByte,
     ar, ag, ab, br, bg, bb,
   ]);
   return bytesToB62(buf);
@@ -719,6 +722,7 @@ export function decodeSeed(str) {
     const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
     const startHeight = (b[5] & 0xF) * 4;
     const endHeight   = ((b[5] >> 4) & 0xF) * 4;
+    const rawWidthScale = (b[8] >> 4) & 0xF;
     const params = {
       complexity:    b[4],
       startHeight,
@@ -726,13 +730,14 @@ export function decodeSeed(str) {
       overlapChance: b[6],
       cornerChance:  b[7] & 0xF,
       sizeScale:     (b[7] >> 4) & 0xF,
-      volatility:    b[8],
+      volatility:    b[8] & 0xF,
+      widthScale:    rawWidthScale === 0 ? 5 : rawWidthScale - 1,
     };
     // Basic range validation
     if (params.complexity < 1 || params.complexity > 4) return null;
     if (startHeight > 16 || startHeight % 4 !== 0) return null;
     if (endHeight   > 16 || endHeight   % 4 !== 0) return null;
-    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10 || params.sizeScale > 10) return null;
+    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10 || params.sizeScale > 10 || params.widthScale > 10) return null;
     const colorA = bytesToHex(b[9], b[10], b[11]);
     const colorB = bytesToHex(b[12], b[13], b[14]);
     return { seed, params, colorA, colorB };

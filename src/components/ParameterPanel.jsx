@@ -108,7 +108,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, sizeScale } = params
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, widthScale, sizeScale } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
@@ -214,10 +214,24 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
+      {/* ── Block Width ──────────────────────────────────────────────── */}
+      <ParamRow
+        label="Block Width"
+        hint="Low = equal widths · High = widths grow left to right"
+      >
+        <ParamSlider
+          value={params.widthScale ?? 5}
+          min={0}
+          max={10}
+          onChange={v => set('widthScale', v)}
+          formatLabel={v => `${v * 10}%`}
+        />
+      </ParamRow>
+
       {/* ── Block Scale ─────────────────────────────────────────────── */}
       <ParamRow
         label="Block Scale"
-        hint="Controls block size expansion (small to large)"
+        hint="Square-like dimensions (low = rect · high = 1×1 2×2 …)"
       >
         <ParamSlider
           value={params.sizeScale ?? 5}
