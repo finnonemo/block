@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, PALETTES, BRAND_PALETTE } from '@/utils/gridUtils'
+import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, PALETTES, BRAND_PALETTE } from '@/utils/gridUtils'
 
 // ─── Segmented button group ───────────────────────────────────────────────────
 
@@ -108,7 +108,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, overlapChance, cornerChance, volatility = 0 } = params
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
@@ -157,6 +157,18 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
+      {/* ── End Height ─────────────────────────────────────────────── */}
+      <ParamRow
+        label="End Height"
+        hint="Y-axis exit point for the last block"
+      >
+        <SegGroup
+          options={END_HEIGHT_OPTIONS.map(o => ({ value: o.value, label: o.label, sub: o.sub }))}
+          value={endHeight}
+          onChange={v => set('endHeight', v)}
+        />
+      </ParamRow>
+
       {/* ── Overlap Chance ─────────────────────────────────────────── */}
       <ParamRow
         label="Overlap Chance"
@@ -191,7 +203,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Trend Volatility ───────────────────────────────────────── */}
       <ParamRow
         label="Trend Volatility"
-        hint="Staircase / candlestick: Y-step between blocks"
+        hint="Controls block height (up to 14) and Y-step between blocks"
       >
         <ParamSlider
           value={params.volatility ?? 0}
@@ -202,7 +214,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
         {(params.volatility ?? 0) > 0 && (
           <p className="text-[10px] text-slate-600 mt-1 leading-tight">
-            Each block steps ±{Math.max(1, Math.round((params.volatility ?? 0) * 0.4 * ROWS))} rows from the previous, producing a staircase / candlestick layout.
+            Max block height {Math.min(14, Math.max(2, Math.round((params.volatility / 10) * 14)))} · Y-step ±{Math.max(1, Math.round((params.volatility ?? 0) * 0.4 * ROWS))} rows
           </p>
         )}
       </ParamRow>

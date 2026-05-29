@@ -1,7 +1,8 @@
 export const COLS = 16;
 export const ROWS = 16;
 
-const ALLOWED_HEIGHTS = [1, 2, 3, 4, 6, 8];
+const ALLOWED_HEIGHTS = [1, 2, 3, 4, 6, 8, 10, 12, 14];
+const ALLOWED_WIDTHS  = [1, 2, 3, 4, 6, 8, 10, 12, 14];
 
 export const BRAND_PALETTE = {
   Navy:       ['#01172b', '#415160', '#808b95', '#c0c5ca'],
@@ -24,15 +25,23 @@ export const PALETTES = [
   { id: 'clean',     label: 'Clean',      surface: '#00e76b', background: '#ffffff' },
 ];
 
-// Complexity meta — controls both amount and height behaviour
+// Complexity meta — controls block count only; height is driven by Trend Volatility
 export const COMPLEXITY = {
-  1: { label: 'Low',     amountOpts: [3],    maxHeight: 4, description: '3 groups' },
-  2: { label: 'Med',     amountOpts: [4, 5], maxHeight: 6, description: '4–5 groups' },
-  3: { label: 'High',    amountOpts: [6],    maxHeight: 8, description: '6 groups' },
-  4: { label: 'Extreme', amountOpts: [7, 8], maxHeight: 8, description: '7–8 groups' },
+  1: { label: 'Low',     amountOpts: [3],    description: '3 groups' },
+  2: { label: 'Med',     amountOpts: [4, 5], description: '4–5 groups' },
+  3: { label: 'High',    amountOpts: [6],    description: '6 groups' },
+  4: { label: 'Extreme', amountOpts: [7, 8], description: '7–8 groups' },
 };
 
 export const START_HEIGHT_OPTIONS = [
+  { value: 0,  label: '0',  sub: 'Bot' },
+  { value: 4,  label: '4',  sub: '' },
+  { value: 8,  label: '8',  sub: 'Ctr' },
+  { value: 12, label: '12', sub: '' },
+  { value: 16, label: '16', sub: 'Top' },
+];
+
+export const END_HEIGHT_OPTIONS = [
   { value: 0,  label: '0',  sub: 'Bot' },
   { value: 4,  label: '4',  sub: '' },
   { value: 8,  label: '8',  sub: 'Ctr' },
@@ -44,21 +53,21 @@ export const START_HEIGHT_OPTIONS = [
 export const DEFAULT_PARAMS = {
   complexity:    2,
   startHeight:   0,
+  endHeight:     0,
   overlapChance: 0,   // 0–10 integer (maps to 0–100%)
   cornerChance:  0,   // 0–3 exact count
   volatility:    0,   // 0–10 integer (maps to 0–100% rebellion probability)
 };
 
 // Build generation config from the UI parameters
-export function buildConfigFromParams({ complexity, startHeight, overlapChance, cornerChance, volatility = 0 }) {
+export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 }) {
   const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
   const oc   = overlapChance / 10;
 
   return {
     amountOpts:    meta.amountOpts,   // amount picked by generatePatternRects using its rng
-    minHeight:     1,
-    maxHeight:     meta.maxHeight,
     emergenceVal:  ROWS - startHeight,
+    exitVal:       ROWS - endHeight,
     overlapChance: oc,
     targetCorners: cornerChance,
     volatility:    volatility / 10,
@@ -87,19 +96,25 @@ function clamp(v, lo, hi) {
 }
 
 function makeHeights(cfg, rng) {
-  const { amount } = cfg;
-  const minH    = cfg.minHeight ?? 1;
-  const maxH    = cfg.maxHeight ?? 8;
-  const allowed = ALLOWED_HEIGHTS.filter(h => h >= minH && h <= maxH);
-  const pool    = allowed.length ? allowed : ALLOWED_HEIGHTS;
-  const h       = Array(amount).fill(null).map(() => rand(pool, rng));
-  if ((cfg.volatility ?? 0) === 0) h.sort((a, b) => a - b);
-  return h;
+  const { amount, volatility = 0 } = cfg;
+
+  if (volatility === 0) {
+    // No volatility: all blocks the same moderate height
+    const pool = ALLOWED_HEIGHTS.filter(h => h >= 2 && h <= 6);
+    const h = rand(pool, rng);
+    return Array(amount).fill(h);
+  }
+
+  // Volatility scales the height ceiling: 0+ → min 2, 1.0 → max 14
+  const maxH  = Math.min(14, Math.max(2, Math.round(volatility * 14)));
+  const pool  = ALLOWED_HEIGHTS.filter(h => h <= maxH);
+  return Array(amount).fill(null).map(() => rand(pool.length ? pool : ALLOWED_HEIGHTS, rng));
 }
 
-function makeWidths(heights, amount, overlapChance, rng) {
-  const maxH    = Math.max(...heights, 1);
-  const allowedW = maxH <= 3 ? [1, 2] : maxH <= 4 ? [2, 3] : [4, 6];
+function makeWidths(heights, amount, overlapChance, rng, strictNoDupDims = false) {
+  // Max width: up to 14, but leave at least 1 column for every other block
+  const maxW    = Math.min(14, COLS - amount + 1);
+  const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
 
   for (let attempt = 0; attempt < 1000; attempt++) {
     const widths  = Array(amount).fill(0).map(() => rand(allowedW, rng));
@@ -117,7 +132,7 @@ function makeWidths(heights, amount, overlapChance, rng) {
     const span = widths.reduce((s, w, i) => s + w - overlaps[i], 0);
     if (span !== COLS) continue;
 
-    if (attempt < 400) {
+    if (attempt < 400 || strictNoDupDims) {
       const hasDup = widths.some(
         (w, i) => i > 0 && overlaps[i] === 0 && w === widths[i - 1] && heights[i] === heights[i - 1]
       );
@@ -138,17 +153,18 @@ function makeWidths(heights, amount, overlapChance, rng) {
 // ─── Public generation ───────────────────────────────────────────────────────
 
 export function generatePatternRects(cfg, rng = Math.random) {
-  const amount   = cfg.amount ?? rand(cfg.amountOpts, rng);
+  const amount   = Math.max(3, cfg.amount ?? rand(cfg.amountOpts, rng));
   const cfgAmt   = { ...cfg, amount };
   const heights  = makeHeights(cfgAmt, rng);
-  const oc       = cfg.overlapChance ?? 0;
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng);
-
   // Resolve emergence Y anchor
   const emergenceVal =
     typeof cfg.emergenceVal === 'number'
       ? cfg.emergenceVal
       : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
+
+  const oc           = cfg.overlapChance ?? 0;
+  const flatBaseline = emergenceVal === 0 || emergenceVal === ROWS;
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline);
 
   // Pre-select which adjacent pairs will be forced corner-meets
   const cornerPairs   = new Set();
@@ -162,14 +178,17 @@ export function generatePatternRects(cfg, rng = Math.random) {
     pairIndices.slice(0, Math.min(targetCorners, pairIndices.length)).forEach(p => cornerPairs.add(p));
   }
 
-  const volatility = cfg.volatility ?? 0;
+  const volatility  = cfg.volatility ?? 0;
+  const exitVal     = cfg.exitVal ?? emergenceVal;
 
   // ── Baseline Y positions ─────────────────────────────────────────────────
-  const startY = clamp(emergenceVal - heights[0], 0, ROWS - heights[0]);
+  const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
+  const exitY  = clamp(exitVal      - heights[amount-1], 0, ROWS - heights[amount-1]);
 
   let baseline;
   if (volatility > 0) {
-    // Staircase / candlestick: random walk — each block steps ±maxStep rows from the previous
+    // Staircase / candlestick: random walk from startY, exit block anchored to exitY.
+    // RNG calls happen in the same order regardless so seeds stay valid.
     const maxStep = Math.max(1, Math.round(volatility * ROWS * 0.4));
     baseline = [];
     let currentY = startY;
@@ -179,11 +198,15 @@ export function generatePatternRects(cfg, rng = Math.random) {
         const dir  = rng() < 0.5 ? 1 : -1;
         currentY   = clamp(currentY + dir * step, 0, ROWS - heights[i]);
       }
-      baseline.push(currentY);
+      // Override last block's ideal position with the exit anchor
+      baseline.push(i === amount - 1 ? exitY : currentY);
     }
   } else {
-    // No volatility: all blocks anchored to the same start Y level
-    baseline = heights.map(h => clamp(startY, 0, ROWS - h));
+    // No volatility: linearly interpolate top-Y from startY to exitY across blocks
+    baseline = heights.map((h, i) => {
+      const t = amount > 1 ? i / (amount - 1) : 0;
+      return clamp(Math.round(startY + t * (exitY - startY)), 0, ROWS - h);
+    });
   }
 
   // ── Y assignment ─────────────────────────────────────────────────────────
@@ -229,7 +252,8 @@ export function generatePatternRects(cfg, rng = Math.random) {
     y = clamp(y, 0, ROWS - h); // final grid-bounds safety
 
     // Enforce: adjacent blocks must never share the same top Y
-    if (prevY !== null && y === prevY) {
+    // Skip when flatBaseline (start height 0 or 16) — flat alignment is intentional there.
+    if (!flatBaseline && prevY !== null && y === prevY) {
       const down = y + 1;
       const up   = y - 1;
       // prefer down; require it stays in grid and still shares an edge (not just corner)
@@ -296,8 +320,8 @@ export function extractBlockGroups(blocks) {
 
     for (let y = 0; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
-        for (let h = 1; h <= Math.min(8, ROWS - y); h++) {
-          for (let w = 1; w <= Math.min(8, COLS - x); w++) {
+        for (let h = 1; h <= Math.min(14, ROWS - y); h++) {
+          for (let w = 1; w <= Math.min(14, COLS - x); w++) {
             if (w * h < 2) continue;
 
             let ok = true;
@@ -341,9 +365,11 @@ export function extractBlockGroups(blocks) {
     }
   }
 
-  // Fallback: ensure ≥3
+  // Fallback: guarantee ≥3 groups
   while (rects.length < 3) {
     let placed = false;
+
+    // Pass 1: prefer uncovered active cells
     for (let i = 0; i < active.length && !placed; i++) {
       if (active[i] !== 1 || overlap[i] > 0) continue;
       const r = Math.floor(i / COLS), c = i % COLS;
@@ -352,15 +378,27 @@ export function extractBlockGroups(blocks) {
                  : null;
       if (!cand) continue;
       rects.push(cand);
-      for (let rr = cand.y; rr < cand.y + cand.h; rr++) {
+      for (let rr = cand.y; rr < cand.y + cand.h; rr++)
         for (let cc = cand.x; cc < cand.x + cand.w; cc++) {
-          overlap[rr * COLS + cc]++;
-          covered[rr * COLS + cc] = 1;
+          overlap[rr * COLS + cc]++; covered[rr * COLS + cc] = 1;
         }
-      }
       placed = true;
     }
-    if (!placed) break;
+
+    // Pass 2: any active cell, overlap allowed (ensures we always reach 3)
+    if (!placed) {
+      for (let i = 0; i < active.length && !placed; i++) {
+        if (active[i] !== 1) continue;
+        const r = Math.floor(i / COLS), c = i % COLS;
+        const cand = r + 1 < ROWS ? { x: c, y: r, w: 1, h: 2 }
+                   : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
+                   : { x: c, y: r, w: 1, h: 1 };
+        rects.push(cand);
+        placed = true;
+      }
+    }
+
+    if (!placed) break; // no active cells at all — truly impossible
   }
 
   return rects;
@@ -406,12 +444,15 @@ function bytesToHex(r, g, b) {
 }
 
 export function encodeSeed(seed, params, colorA, colorB) {
-  const { complexity, startHeight, overlapChance, cornerChance, volatility = 0 } = params;
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 0 } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
+  // byte 5: low nibble = startHeight/4 (0-4), high nibble = endHeight/4 (0-4)
+  // old seeds had high nibble = 0 → endHeight = 0 (backward-compatible)
+  const heightsByte = (startHeight / 4) | ((endHeight / 4) << 4);
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
-    complexity, startHeight / 4, overlapChance, cornerChance, volatility,
+    complexity, heightsByte, overlapChance, cornerChance, volatility,
     ar, ag, ab, br, bg, bb,
   ]);
   return bytesToB62(buf);
@@ -423,16 +464,20 @@ export function decodeSeed(str) {
     if (s.length !== B62_LEN || ![...s].every(c => B62.includes(c))) return null;
     const b    = b62ToBytes(s);
     const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    const startHeight = (b[5] & 0xF) * 4;
+    const endHeight   = ((b[5] >> 4) & 0xF) * 4;
     const params = {
       complexity:    b[4],
-      startHeight:   b[5] * 4,
+      startHeight,
+      endHeight,
       overlapChance: b[6],
       cornerChance:  b[7],
       volatility:    b[8],
     };
     // Basic range validation
     if (params.complexity < 1 || params.complexity > 4) return null;
-    if (params.startHeight > 16 || params.startHeight % 4 !== 0) return null;
+    if (startHeight > 16 || startHeight % 4 !== 0) return null;
+    if (endHeight   > 16 || endHeight   % 4 !== 0) return null;
     if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10) return null;
     const colorA = bytesToHex(b[9], b[10], b[11]);
     const colorB = bytesToHex(b[12], b[13], b[14]);

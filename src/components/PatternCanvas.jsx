@@ -104,21 +104,6 @@ export function PatternCanvas({ blocks, rectangles, colorA, colorB, onPaint, siz
         )
       })}
 
-      {/* Block group outlines — show extracted group boundaries */}
-      {rectangles.map((r, i) => (
-        <div
-          key={i}
-          className="absolute pointer-events-none"
-          style={{
-            left:   r.x * cellSize,
-            top:    r.y * cellSize,
-            width:  r.w * cellSize,
-            height: r.h * cellSize,
-            outline: '1.5px solid rgba(255,255,255,0.55)',
-            outlineOffset: '-1px',
-          }}
-        />
-      ))}
 
       {/* Grid lines */}
       <svg
