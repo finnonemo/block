@@ -100,27 +100,28 @@ function clamp(v, lo, hi) {
 function makeHeights(cfg, rng) {
   const { amount, volatility = 0, connectionTypes, sizeScale = 0 } = cfg;
 
-  // Full-span staircase (start=0 end=16 or start=16 end=0):
-  // heights must sum to exactly ROWS so every block tiles the full height with no gaps.
+  // Staircase trend (start height !== end height):
+  // heights must sum to Math.abs(ev - xv) + shared rows so they tile the trend exactly.
   const ev = typeof cfg.emergenceVal === 'number' ? cfg.emergenceVal : ROWS;
   const xv = typeof cfg.exitVal      === 'number' ? cfg.exitVal      : ev;
-  if (Math.abs(ev - xv) === ROWS && connectionTypes) {
-    // Each corner-like connection (corner or horizontal) saves 1 from the sum (no shared row).
-    // Each vertical connection needs 2 extra (2 shared rows).
-    const verticalCount = connectionTypes.filter(t => t === 'vertical').length;
-    const targetSum = ROWS + (verticalCount * 2);
+  if (ev !== xv && connectionTypes) {
+    // Connection 1 (i=1) can share 1 row if vertical, others share 2 rows.
+    const verticalCount1 = connectionTypes[1] === 'vertical' ? 1 : 0;
+    const verticalCountRest = connectionTypes.slice(2).filter(t => t === 'vertical').length;
+    const targetSum = Math.abs(ev - xv) + (verticalCount1 * 1) + (verticalCountRest * 2);
 
     const heights = [];
     let remaining = targetSum;
-    for (let i = 0; i < amount - 1; i++) {
-      const minLeft = amount - i - 1;
+    // The first amount-1 heights (0 to amount-2) must sum to targetSum
+    for (let i = 0; i < amount - 2; i++) {
+      const minLeft = amount - i - 2;
       const maxH    = Math.min(14, remaining - minLeft);
       const pool    = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
       
       let picked;
       if (pool.length) {
         const progress = i / (amount - 1);
-        const avgH = targetSum / amount;
+        const avgH = targetSum / (amount - 1);
         const expansionH = 1 + progress * (14 - 1);
         const targetH = avgH + sizeScale * (expansionH - avgH);
 
@@ -135,6 +136,19 @@ function makeHeights(cfg, rng) {
       remaining -= picked;
     }
     heights.push(clamp(remaining, 1, 14));
+
+    // Generate the last block height heights[amount-1] independently (must be >= heights[amount-2])
+    const minLastH = heights[heights.length - 1];
+    const progress = 1;
+    const avgH = targetSum / (amount - 1);
+    const expansionH = 14;
+    const targetH = avgH + sizeScale * (expansionH - avgH);
+    const pool = ALLOWED_HEIGHTS
+      .filter(h => h >= minLastH)
+      .sort((a, b) => Math.abs(a - targetH) - Math.abs(b - targetH));
+    const subPool = pool.slice(0, 3);
+    heights.push(subPool.length ? rand(subPool, rng) : minLastH);
+
     heights.sort((a, b) => a - b);
     return heights;
   }
@@ -174,20 +188,21 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
     const overlaps = [0];
 
     for (let i = 1; i < amount; i++) {
+      const minOvReq = i === 1 ? 1 : 2;
       const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
-      if (maxOv >= 2) {
+      if (maxOv >= minOvReq) {
         const type = connectionTypes ? connectionTypes[i] : 'vertical';
         if (type === 'horizontal') {
           // Must have horizontal overlap
           const effectiveOverlapArea = overlapArea === 0 ? 0.4 : overlapArea;
           const overlapAmount = Math.ceil(effectiveOverlapArea * maxOv);
-          overlaps.push(Math.max(2, Math.min(overlapAmount, maxOv)));
+          overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
         } else {
           // corner or vertical
           // If overlapArea is 0, they MUST NOT overlap horizontally
           if (overlapArea > 0 && rng() < overlapArea) {
             const overlapAmount = Math.ceil(overlapArea * maxOv);
-            overlaps.push(Math.max(2, Math.min(overlapAmount, maxOv)));
+            overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
           } else {
             overlaps.push(0);
           }
@@ -236,10 +251,10 @@ function generateSinglePatternRects(cfg, rng) {
     typeof cfg.emergenceVal === 'number'
       ? cfg.emergenceVal
       : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
-  const oc         = cfg.overlapChance ?? 0;
-  const exitVal    = cfg.exitVal ?? emergenceVal;
-  const isFullSpan = Math.abs(emergenceVal - exitVal) === ROWS;
-  const ascending  = emergenceVal > exitVal;
+  const oc          = cfg.overlapChance ?? 0;
+  const exitVal     = cfg.exitVal ?? emergenceVal;
+  const isStaircase = emergenceVal !== exitVal;
+  const ascending   = emergenceVal > exitVal;
 
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
@@ -255,7 +270,7 @@ function generateSinglePatternRects(cfg, rng) {
     if (cornerIndices.has(i)) {
       connectionTypes[i] = 'corner';
     } else {
-      if (isFullSpan) {
+      if (isStaircase) {
         connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
       } else {
         connectionTypes[i] = rng() < oc ? 'horizontal' : 'vertical';
@@ -306,19 +321,20 @@ function generateSinglePatternRects(cfg, rng) {
       // ── Block 0: anchored to startY
       y = idealY;
 
+    } else if (isStaircase) {
+      // ── Staircase (start height !== end height):
+      //    🟡 corner / horizontal → 0 shared rows: y = prevY−h / prevY+prevH
+      //    🔵 vertical            → share 1 row (i=1) or 2 rows (i>1)
+      const type = connectionTypes[i];
+      const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
+      const shareOffset = i === 1 ? 1 : 2;
+      y = ascending
+        ? (useHorizontalEdge ? prevY - h     : prevY - h + shareOffset)
+        : (useHorizontalEdge ? prevY + prevH : prevY + prevH - shareOffset);
+
     } else if (i === amount - 1) {
       // ── Block N-1 (last): anchored to exitY (End Height)
       y = exitY;
-
-    } else if (isFullSpan) {
-      // ── Full-span staircase (start=0↔end=16):
-      //    🟡 corner / horizontal → 0 shared rows: y = prevY−h / prevY+prevH
-      //    🔵 vertical            → 2 shared rows: y = prevY−h+2 / prevY+prevH−2
-      const type = connectionTypes[i];
-      const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
-      y = ascending
-        ? (useHorizontalEdge ? prevY - h     : prevY - h + 2)
-        : (useHorizontalEdge ? prevY + prevH : prevY + prevH - 2);
 
     } else if (connectionTypes[i] === 'corner' || connectionTypes[i] === 'horizontal') {
       // ── Type 2 (Corner/Horizontal Connect): touch flush horizontally, direction randomised
@@ -346,8 +362,9 @@ function generateSinglePatternRects(cfg, rng) {
       const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
       const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
       // BLUE range: shared-row positions, intersected with corridor
-      const edgeLo = clamp(prevY - h + 2, 0, ROWS - h);
-      const edgeHi = clamp(prevY + prevH - 2, 0, ROWS - h);
+      const shareOffset = i === 1 ? 1 : 2;
+      const edgeLo = clamp(prevY - h + shareOffset, 0, ROWS - h);
+      const edgeHi = clamp(prevY + prevH - shareOffset, 0, ROWS - h);
       const lo = Math.max(edgeLo, corridorLo);
       const hi = Math.min(edgeHi, corridorHi);
       const blueRange = lo <= hi ? { lo, hi } : { lo: edgeLo, hi: edgeHi };
@@ -385,9 +402,9 @@ function generateSinglePatternRects(cfg, rng) {
 
     y = clamp(y, 0, ROWS - h); // final grid-bounds safety
 
-    // Enforce no-same-Y — skip when intentional (vertical edge, isFullSpan, last block, flatBaseline)
+    // Enforce no-same-Y — skip when intentional (vertical edge, isStaircase, last block, flatBaseline)
     const isLastBlock = (i === amount - 1);
-    if (!flatBaseline && !isLastBlock && !isFullSpan && !verticalEdge && prevY !== null && y === prevY) {
+    if (!flatBaseline && !isLastBlock && !isStaircase && !verticalEdge && prevY !== null && y === prevY) {
       const down = y + 1;
       const up   = y - 1;
       if (down <= ROWS - h && down < prevY + prevH) y = down;
@@ -429,16 +446,17 @@ function isValidPattern(rects, cfg) {
 
     const overlapX = Math.max(0, Math.min(rects[i - 1].x + rects[i - 1].w, rects[i].x + rects[i].w) - Math.max(rects[i - 1].x, rects[i].x));
     const overlapY = Math.max(0, Math.min(rects[i - 1].y + rects[i - 1].h, rects[i].y + rects[i].h) - Math.max(rects[i - 1].y, rects[i].y));
-    const overlaps = overlapY > 0;
     const isCornerMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX === 0);
-    const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= 2);
+    
+    const minOverlapReq = i === 1 ? 1 : 2;
+    const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= minOverlapReq);
 
     if (isCornerMeet) {
       actualCorners++;
     }
 
-    // Adjacent blocks must connect (either overlap >= 2, corner-touch, or horizontal edge >= 2)
-    const isConnected = isCornerMeet || isHorizontalEdgeMeet || (overlapY >= 2);
+    // Adjacent blocks must connect (either overlap >= minOverlapReq, corner-touch, or horizontal edge >= minOverlapReq)
+    const isConnected = isCornerMeet || isHorizontalEdgeMeet || (overlapY >= minOverlapReq);
     if (!isConnected) {
       return false;
     }
@@ -472,14 +490,18 @@ function isValidPattern(rects, cfg) {
     }
   }
 
-  // 5. Enforce no equal top Y or bottom Y for adjacent blocks when startHeight !== endHeight
-  if (emergenceVal !== exitVal) {
-    for (let i = 1; i < amount; i++) {
-      const rA = rects[i - 1];
-      const rB = rects[i];
-      if (rA.y === rB.y || (rA.y + rA.h === rB.y + rB.h)) {
-        return false;
-      }
+  // 5. Enforce staircase slope on both top and bottom edges
+  const isTopFlatAllowed = (emergenceVal === 0 && exitVal === 0);
+  const isBotFlatAllowed = (emergenceVal === ROWS && exitVal === ROWS);
+
+  for (let i = 1; i < amount; i++) {
+    const rA = rects[i - 1];
+    const rB = rects[i];
+    if (!isTopFlatAllowed && rA.y === rB.y) {
+      return false;
+    }
+    if (!isBotFlatAllowed && (rA.y + rA.h === rB.y + rB.h)) {
+      return false;
     }
   }
 
