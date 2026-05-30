@@ -25,6 +25,33 @@ export const PALETTES = [
   { id: 'clean',     label: 'Clean',      surface: '#00e76b', background: '#ffffff' },
 ];
 
+// Two-color preset pairs organized by brand family
+// label format: "{Family} {surfaceShade}/{bgShade}" where 100=darkest shade, 25=lightest
+export const COLOR_PAIRS = [
+  // Green
+  { id: 'grn-nav',    group: 'Green',  label: 'Green / Navy',    surface: '#00e76b', background: '#01172b' },
+  { id: 'grn-100-25', group: 'Green',  label: 'Green 100/25',    surface: '#00e76b', background: '#bff9da' },
+  { id: 'grn-wht',    group: 'Green',  label: 'Green / White',   surface: '#00e76b', background: '#ffffff' },
+  // Blue
+  { id: 'blu-nav',    group: 'Blue',   label: 'Blue / Navy',     surface: '#50cfff', background: '#01172b' },
+  { id: 'blu-100-25', group: 'Blue',   label: 'Blue 100/25',     surface: '#50cfff', background: '#d3f3ff' },
+  // Orange
+  { id: 'org-100-25', group: 'Orange', label: 'Orange 100/25',   surface: '#f26414', background: '#fcd8c4' },
+  { id: 'org-75-25',  group: 'Orange', label: 'Orange 75/25',    surface: '#f58b4f', background: '#fcd8c4' },
+  { id: 'org-100-50', group: 'Orange', label: 'Orange 100/50',   surface: '#f26414', background: '#f9b28a' },
+  { id: 'org-yel',    group: 'Orange', label: 'Orange / Yellow', surface: '#f26414', background: '#f2f93c' },
+  // Yellow
+  { id: 'yel-nav',    group: 'Yellow', label: 'Yellow / Navy',   surface: '#f2f93c', background: '#01172b' },
+  { id: 'yel-100-25', group: 'Yellow', label: 'Yellow 100/25',   surface: '#f2f93c', background: '#fcfece' },
+  // Red
+  { id: 'red-100-25', group: 'Red',    label: 'Red 100/25',      surface: '#f73232', background: '#fdcccc' },
+  // Purple
+  { id: 'pur-red',    group: 'Purple', label: 'Purple / Red',    surface: '#aa46c3', background: '#f73232' },
+  { id: 'pur-100-25', group: 'Purple', label: 'Purple 100/25',   surface: '#aa46c3', background: '#ead1f0' },
+  // Navy
+  { id: 'nav-gry',    group: 'Navy',   label: 'Navy / Lt.Grey',  surface: '#01172b', background: '#a6bfcc' },
+];
+
 // Complexity meta — controls block count only; height is driven by Trend Volatility
 export const COMPLEXITY = {
   1: { label: 'Low',     amountOpts: [3],    description: '3 groups' },
@@ -51,30 +78,33 @@ export const END_HEIGHT_OPTIONS = [
 
 // Default parameters
 export const DEFAULT_PARAMS = {
-  complexity:    2,
-  startHeight:   0,
-  endHeight:     0,
-  overlapChance: 0,   // 0–10 integer (maps to 0–100%)
-  cornerChance:  0,   // 0–3 exact count
-  volatility:    5,   // 0–10 integer (maps to 0–100% curve bending, default 50%)
-  widthScale:    5,   // 0–10 integer (maps to 0–100% block width variance, default 50%)
-  sizeScale:     5,   // 0–10 integer (maps to 0–100% block square scaling, default 50%)
+  complexity:      2,
+  startHeight:     0,
+  endHeight:       0,
+  overlapChance:   0,   // 0–10 integer (maps to 0–100%)
+  cornerChance:    0,   // 0–3 exact count
+  volatility:      5,   // 0–10 integer (maps to 0–100% curve bending, default 50%)
+  sizeScale:       5,   // 0–10 integer (maps to 0–100% block square scaling, default 50%)
+  startBlockSize:  3,   // 0–10: target height of first/smallest block (0=tiny, 10=tall)
+  endBlockSize:    8,   // 0–10: target height of last/largest block  (0=tiny, 10=tall)
 };
 
 // Build generation config from the UI parameters
-export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, widthScale = 5, sizeScale = 5 }) {
+export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5, startBlockSize = 3, endBlockSize = 8 }) {
   const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
   const oc   = overlapChance / 10;
 
   return {
-    amountOpts:    meta.amountOpts,   // amount picked by generatePatternRects using its rng
-    emergenceVal:  ROWS - startHeight,
-    exitVal:       ROWS - endHeight,
-    overlapChance: oc,
-    targetCorners: cornerChance,
-    volatility:    volatility / 10,
-    widthScale:    widthScale / 10,
-    sizeScale:     sizeScale / 10,
+    amountOpts:     meta.amountOpts,
+    emergenceVal:   ROWS - startHeight,
+    exitVal:        ROWS - endHeight,
+    overlapChance:  oc,
+    targetCorners:  cornerChance,
+    volatility:     volatility / 10,
+    widthScale:     0.5,  // fixed — param removed from UI
+    sizeScale:      sizeScale / 10,
+    startBlockSize,
+    endBlockSize,
   };
 }
 
@@ -148,17 +178,24 @@ function makeHeights(cfg, rng) {
     return heights;
   }
 
-  // Non-staircase: sizeScale pulls heights toward ROWS/amount so that when widths
-  // also match heights (via sizeScale in makeWidths), blocks become square (1×1, 2×2…).
-  // sizeScale=0 → wide pool (free height variation); sizeScale=1 → tight pool near avgH.
-  const avgH = ROWS / amount;
-  const sortedByAvg = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
-  // sizeScale=0 → full pool (free variation); sizeScale=1 → single closest value → uniform heights
-  const subPoolSize = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * (1 - sizeScale * 0.9)));
-  const heightPool  = sortedByAvg.slice(0, subPoolSize);
+  // Non-staircase: startBlockSize/endBlockSize define target heights at each end.
+  // Each block interpolates linearly between them. sizeScale controls pool tightness.
+  // Heights are sorted ascending so the smallest block is always at position 0 (start).
+  const startBlockSize = cfg.startBlockSize ?? 3;
+  const endBlockSize   = cfg.endBlockSize   ?? 8;
+  // Map 0–10 scale to allowed height range 1–14
+  const startH = 1 + (startBlockSize / 10) * 13;
+  const endH   = 1 + (endBlockSize   / 10) * 13;
 
-  const h = Array(amount).fill(null).map(() => rand(heightPool, rng));
-  h.sort((a, b) => a - b); // always ascending to support grow from small to large
+  const h = Array(amount).fill(null).map((_, i) => {
+    const t      = amount > 1 ? i / (amount - 1) : 0.5;
+    const target = startH + t * (endH - startH);
+    // sizeScale=0 → wider pool (random variation); sizeScale=1 → tight pool near target
+    const sorted  = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
+    const poolSz  = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * (1 - sizeScale * 0.9)));
+    return rand(sorted.slice(0, poolSz), rng);
+  });
+  h.sort((a, b) => a - b); // ascending: smallest → first block, largest → last block
   return h;
 }
 
@@ -526,6 +563,26 @@ export function syncBlocks(rects) {
   return blocks;
 }
 
+// Mirror blocks array horizontally or vertically
+export function applySymmetry(blocks, mode) {
+  if (!mode || mode === 'none') return blocks;
+  const b = [...blocks];
+  if (mode === 'mirror-h') {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < Math.floor(COLS / 2); col++) {
+        b[row * COLS + (COLS - 1 - col)] = b[row * COLS + col];
+      }
+    }
+  } else if (mode === 'mirror-v') {
+    for (let row = 0; row < Math.floor(ROWS / 2); row++) {
+      for (let col = 0; col < COLS; col++) {
+        b[(ROWS - 1 - row) * COLS + col] = b[row * COLS + col];
+      }
+    }
+  }
+  return b;
+}
+
 // ─── Block Group Extraction (greedy, prefix-sum accelerated) ─────────────────
 
 function buildSum(flat, cols, rows) {
@@ -649,32 +706,35 @@ export function extractBlockGroups(blocks) {
 }
 
 // ─── Seed encode / decode ────────────────────────────────────────────────────
-// Wire format: 15 bytes → Base62 (A–Z a–z 0–9) → 21 alphanumeric chars, no symbols.
+// V1 format: 15 bytes → 21 B62 chars (old seeds, no block sizes)
+// V2 format: 16 bytes → 22 B62 chars (adds startBlockSize + endBlockSize in b[15])
 //   [0-3]  uint32 random seed  (big-endian)
 //   [4]    complexity           (1–4)
-//   [5]    startHeight / 4      (0–4  →  0,4,8,12,16)
+//   [5]    heights byte: low nibble = startHeight/4, high nibble = endHeight/4
 //   [6]    overlapChance        (0–10)
-//   [7]    cornerChance         (0–3)
-//   [8]    volatility           (0–10)
+//   [7]    bits 0-1=cornerChance, bits 2-3=symmetryCode, bits 4-7=sizeScale
+//   [8]    bits 0-3=volatility, bits 4-7=widthScale+1
 //   [9-11] colorA RGB
 //   [12-14] colorB RGB
+//   [15]   V2 only: bits 0-3=startBlockSize (0-10), bits 4-7=endBlockSize (0-10)
 
 const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const B62_LEN = 21; // ceil(120 bits / log2(62))
+const B62_LEN_V1 = 21; // 15 bytes
+const B62_LEN_V2 = 22; // 16 bytes — ceil(128 bits / log2(62))
 
-function bytesToB62(bytes) {
+function bytesToB62(bytes, targetLen) {
   let n = 0n;
   for (const b of bytes) n = (n << 8n) | BigInt(b);
   let s = '';
   while (n > 0n) { s = B62[Number(n % 62n)] + s; n /= 62n; }
-  return s.padStart(B62_LEN, 'A');
+  return s.padStart(targetLen, 'A');
 }
 
-function b62ToBytes(str) {
+function b62ToBytes(str, byteCount) {
   let n = 0n;
   for (const c of str) n = n * 62n + BigInt(B62.indexOf(c));
-  const bytes = new Uint8Array(15);
-  for (let i = 14; i >= 0; i--) { bytes[i] = Number(n & 0xffn); n >>= 8n; }
+  const bytes = new Uint8Array(byteCount);
+  for (let i = byteCount - 1; i >= 0; i--) { bytes[i] = Number(n & 0xffn); n >>= 8n; }
   return bytes;
 }
 
@@ -688,49 +748,57 @@ function bytesToHex(r, g, b) {
 }
 
 export function encodeSeed(seed, params, colorA, colorB) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, widthScale = 5, sizeScale = 5 } = params;
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5, startBlockSize = 3, endBlockSize = 8 } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
-  // byte 5: low nibble = startHeight/4 (0-4), high nibble = endHeight/4 (0-4)
-  // old seeds had high nibble = 0 → endHeight = 0 (backward-compatible)
-  const heightsByte = (startHeight / 4) | ((endHeight / 4) << 4);
-  // Pack sizeScale (0-10) in high nibble of cornerChance byte (b[7]).
-  const cornerChanceByte = cornerChance | (sizeScale << 4);
-  // Pack widthScale (0-10) in high nibble of volatility byte (b[8]) using value + 1 to distinguish from 0 in old seeds.
-  const volatilityByte = (volatility & 0xF) | (((widthScale + 1) & 0xF) << 4);
+  const heightsByte  = (startHeight / 4) | ((endHeight / 4) << 4);
+  // bits 2-3 (symmetry) always 0 — param removed
+  const cornerChanceByte = (cornerChance & 0x3) | ((sizeScale & 0xF) << 4);
+  // high nibble (widthScale) always 0 — param removed
+  const volatilityByte   = (volatility & 0xF);
+  const blockSizeByte    = (startBlockSize & 0xF) | ((endBlockSize & 0xF) << 4);
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
     complexity, heightsByte, overlapChance, cornerChanceByte, volatilityByte,
     ar, ag, ab, br, bg, bb,
+    blockSizeByte,
   ]);
-  return bytesToB62(buf);
+  return bytesToB62(buf, B62_LEN_V2);
 }
 
 export function decodeSeed(str) {
   try {
     const s = str.trim();
-    if (s.length !== B62_LEN || ![...s].every(c => B62.includes(c))) return null;
-    const b    = b62ToBytes(s);
-    const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    const isV1 = s.length === B62_LEN_V1;
+    const isV2 = s.length === B62_LEN_V2;
+    if ((!isV1 && !isV2) || ![...s].every(c => B62.includes(c))) return null;
+
+    const byteCount = isV2 ? 16 : 15;
+    const b         = b62ToBytes(s, byteCount);
+    const seed      = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+
     const startHeight = (b[5] & 0xF) * 4;
     const endHeight   = ((b[5] >> 4) & 0xF) * 4;
-    const rawWidthScale = (b[8] >> 4) & 0xF;
+
     const params = {
-      complexity:    b[4],
+      complexity:     b[4],
       startHeight,
       endHeight,
-      overlapChance: b[6],
-      cornerChance:  b[7] & 0xF,
-      sizeScale:     (b[7] >> 4) & 0xF,
-      volatility:    b[8] & 0xF,
-      widthScale:    rawWidthScale === 0 ? 5 : rawWidthScale - 1,
+      overlapChance:  b[6],
+      cornerChance:   b[7] & 0x3,
+      sizeScale:      (b[7] >> 4) & 0xF,
+      volatility:     b[8] & 0xF,
+      startBlockSize: isV2 ? (b[15] & 0xF)        : 3,
+      endBlockSize:   isV2 ? ((b[15] >> 4) & 0xF) : 8,
     };
-    // Basic range validation
-    if (params.complexity < 1 || params.complexity > 4) return null;
-    if (startHeight > 16 || startHeight % 4 !== 0) return null;
-    if (endHeight   > 16 || endHeight   % 4 !== 0) return null;
-    if (params.overlapChance > 10 || params.cornerChance > 3 || params.volatility > 10 || params.sizeScale > 10 || params.widthScale > 10) return null;
-    const colorA = bytesToHex(b[9], b[10], b[11]);
+
+    if (params.complexity < 1 || params.complexity > 4)       return null;
+    if (startHeight > 16 || startHeight % 4 !== 0)            return null;
+    if (endHeight   > 16 || endHeight   % 4 !== 0)            return null;
+    if (params.overlapChance > 10 || params.cornerChance > 3) return null;
+    if (params.volatility > 10 || params.sizeScale > 10)      return null;
+
+    const colorA = bytesToHex(b[9],  b[10], b[11]);
     const colorB = bytesToHex(b[12], b[13], b[14]);
     return { seed, params, colorA, colorB };
   } catch {

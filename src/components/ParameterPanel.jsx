@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, PALETTES, BRAND_PALETTE } from '@/utils/gridUtils'
+import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, BRAND_PALETTE, COLOR_PAIRS } from '@/utils/gridUtils'
 
 // ─── Segmented button group ───────────────────────────────────────────────────
 
@@ -56,26 +57,66 @@ function ParamSlider({ value, min, max, step = 1, onChange, formatLabel }) {
   )
 }
 
-// ─── Palette quick-pick ───────────────────────────────────────────────────────
+// ─── Color pair picker ────────────────────────────────────────────────────────
 
-function PaletteCard({ palette, active, onSelect }) {
+const COLOR_PAIR_GROUPS = [...new Set(COLOR_PAIRS.map(p => p.group))]
+
+function ColorPairPicker({ colorA, colorB, onSelectPair }) {
+  const [openGroup, setOpenGroup] = useState(null)
+  const activePair = COLOR_PAIRS.find(p => p.surface === colorA && p.background === colorB)
+
   return (
-    <button
-      onClick={onSelect}
-      title={palette.label}
-      className={cn(
-        'flex flex-col gap-1 p-1.5 rounded-md border transition-all',
-        active
-          ? 'border-[#50cfff] bg-[#0d2035]'
-          : 'border-[#1e2d3d] bg-[#0c1926] hover:border-[#3a4a5a]'
-      )}
-    >
-      <div className="flex gap-0.5">
-        <span className="w-6 h-4 rounded-sm border border-white/10" style={{ backgroundColor: palette.background }} />
-        <span className="w-6 h-4 rounded-sm border border-white/10" style={{ backgroundColor: palette.surface }} />
-      </div>
-      <span className="text-[9px] text-slate-500 leading-none">{palette.label}</span>
-    </button>
+    <div className="space-y-1.5">
+      {COLOR_PAIR_GROUPS.map(group => {
+        const pairs   = COLOR_PAIRS.filter(p => p.group === group)
+        const hasActive = pairs.some(p => p.id === activePair?.id)
+        const isOpen  = openGroup === group || hasActive
+
+        return (
+          <div key={group}>
+            <button
+              onClick={() => setOpenGroup(isOpen && !hasActive ? null : group)}
+              className={cn(
+                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all',
+                hasActive ? 'bg-[#0d2035] border border-[#50cfff]/40 text-white' : 'text-slate-400 hover:text-slate-200'
+              )}
+            >
+              <span className="font-semibold flex-1 text-left">{group}</span>
+              {hasActive && (
+                <span className="flex gap-1">
+                  <span className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: colorA }} />
+                  <span className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: colorB }} />
+                </span>
+              )}
+              <span className="text-[10px] opacity-40">{isOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {isOpen && (
+              <div className="mt-1 space-y-0.5 pl-1">
+                {pairs.map(pair => (
+                  <button
+                    key={pair.id}
+                    onClick={() => onSelectPair(pair)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all border',
+                      activePair?.id === pair.id
+                        ? 'border-[#50cfff] bg-[#0d2035] text-white'
+                        : 'border-transparent text-slate-400 hover:border-[#1e2d3d] hover:text-slate-200'
+                    )}
+                  >
+                    <span className="flex gap-0.5 shrink-0">
+                      <span className="w-5 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.surface }} />
+                      <span className="w-5 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.background }} />
+                    </span>
+                    <span className="flex-1 text-left">{pair.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -108,17 +149,13 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, widthScale, sizeScale } = params
+  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, sizeScale, startBlockSize = 3, endBlockSize = 8 } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
   }
 
-  // Check if current colors match a preset palette
-  const activePalette = PALETTES.find(p => p.surface === colorA && p.background === colorB)
-
-  // Color picker active slot state (local to this component)
-  const [activeSlot, setActiveSlot] = React.useState('A') // 'A' | 'B'
+  const [activeSlot, setActiveSlot] = useState('A')
 
   function pickColor(hex) {
     if (activeSlot === 'A') onColorAChange(hex)
@@ -214,20 +251,6 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
-      {/* ── Block Width ──────────────────────────────────────────────── */}
-      <ParamRow
-        label="Block Width"
-        hint="Low = equal widths · High = widths vary a lot (grow left to right)"
-      >
-        <ParamSlider
-          value={params.widthScale ?? 5}
-          min={0}
-          max={10}
-          onChange={v => set('widthScale', v)}
-          formatLabel={v => `${v * 10}%`}
-        />
-      </ParamRow>
-
       {/* ── Block Scale ─────────────────────────────────────────────── */}
       <ParamRow
         label="Block Scale"
@@ -242,25 +265,55 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
+      {/* ── Start Block Size ────────────────────────────────────────── */}
+      <ParamRow
+        label="Start Block Size"
+        hint="Target height of the first (smallest) block"
+      >
+        <ParamSlider
+          value={startBlockSize}
+          min={0}
+          max={10}
+          onChange={v => set('startBlockSize', v)}
+          formatLabel={v => {
+            const h = Math.round(1 + (v / 10) * 13)
+            return `${h}u`
+          }}
+        />
+      </ParamRow>
+
+      {/* ── End Block Size ──────────────────────────────────────────── */}
+      <ParamRow
+        label="End Block Size"
+        hint="Target height of the last (largest) block"
+      >
+        <ParamSlider
+          value={endBlockSize}
+          min={0}
+          max={10}
+          onChange={v => set('endBlockSize', v)}
+          formatLabel={v => {
+            const h = Math.round(1 + (v / 10) * 13)
+            return `${h}u`
+          }}
+        />
+      </ParamRow>
+
       {/* ── Color Palette ──────────────────────────────────────────── */}
-      <ParamRow label="Color Palette" hint="Quick picks or select individual colors">
+      <ParamRow label="Color Pairs" hint="Preset brand pairs">
+        <ColorPairPicker
+          colorA={colorA}
+          colorB={colorB}
+          onSelectPair={pair => { onColorAChange(pair.surface); onColorBChange(pair.background) }}
+        />
+      </ParamRow>
 
-        {/* Preset palettes */}
-        <div className="flex gap-1.5 flex-wrap mb-3">
-          {PALETTES.map(p => (
-            <PaletteCard
-              key={p.id}
-              palette={p}
-              active={activePalette?.id === p.id}
-              onSelect={() => { onColorAChange(p.surface); onColorBChange(p.background) }}
-            />
-          ))}
-        </div>
-
+      {/* ── Custom Colors ──────────────────────────────────────────── */}
+      <ParamRow label="Custom Colors" hint="Pick individual colors">
         {/* Active color slots */}
         <div className="flex gap-2 mb-3">
           {[
-            { slot: 'A', label: 'Surface', color: colorA },
+            { slot: 'A', label: 'Surface',    color: colorA },
             { slot: 'B', label: 'Background', color: colorB },
           ].map(({ slot, label, color }) => (
             <button
@@ -309,6 +362,3 @@ function ParamRow({ label, hint, children }) {
     </div>
   )
 }
-
-// React must be imported for JSX in this file (useState)
-import React from 'react'
