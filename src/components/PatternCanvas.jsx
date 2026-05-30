@@ -1,59 +1,93 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { COLS, ROWS } from '@/utils/gridUtils'
 
-function getConnectionMarkers(rectangles, cellSize) {
+function getCornerMarkers(rectangles, cellSize) {
   const markers = [];
-  const delta = cellSize * 0.25;
+  const delta = cellSize * 0.4;
 
   for (let i = 1; i < rectangles.length; i++) {
     const rA = rectangles[i - 1];
     const rB = rectangles[i];
 
-    // Corner touch
+    // Case: A top-right → B bottom-left (rA above-left, rB below-right)
     if (rA.x + rA.w === rB.x && rA.y === rB.y + rB.h) {
       const cx = rB.x * cellSize;
       const cy = rA.y * cellSize;
       markers.push(
-        <path
-          key={`c-tr-${i}`}
+        <path key={`c-tr-bl-${i}`}
           d={`M ${cx - delta} ${cy} H ${cx} V ${cy + delta}`}
-          stroke="white"
-          strokeWidth="2.5"
-          fill="none"
+          stroke="white" strokeWidth="2.5" fill="none"
         />
       );
       markers.push(
-        <path
-          key={`c-bl-${i}`}
+        <path key={`c-bl-tr-${i}`}
           d={`M ${cx + delta} ${cy} H ${cx} V ${cy - delta}`}
-          stroke="white"
-          strokeWidth="2.5"
-          fill="none"
+          stroke="white" strokeWidth="2.5" fill="none"
         />
       );
     }
+    // Case: A bottom-right → B top-left (rA above-right, rB below-left)
     else if (rA.x + rA.w === rB.x && rA.y + rA.h === rB.y) {
       const cx = rB.x * cellSize;
       const cy = rB.y * cellSize;
       markers.push(
-        <path
-          key={`c-br-${i}`}
+        <path key={`c-br-tl-${i}`}
           d={`M ${cx - delta} ${cy} H ${cx} V ${cy - delta}`}
-          stroke="white"
-          strokeWidth="2.5"
-          fill="none"
+          stroke="white" strokeWidth="2.5" fill="none"
         />
       );
       markers.push(
-        <path
-          key={`c-tl-${i}`}
+        <path key={`c-tl-br-${i}`}
           d={`M ${cx + delta} ${cy} H ${cx} V ${cy + delta}`}
-          stroke="white"
-          strokeWidth="2.5"
-          fill="none"
+          stroke="white" strokeWidth="2.5" fill="none"
         />
       );
     }
+    // Case: A top-left → B bottom-right
+    else if (rA.x === rB.x + rB.w && rA.y === rB.y + rB.h) {
+      const cx = rA.x * cellSize;
+      const cy = rA.y * cellSize;
+      markers.push(
+        <path key={`c-tl-br-a-${i}`}
+          d={`M ${cx + delta} ${cy} H ${cx} V ${cy + delta}`}
+          stroke="white" strokeWidth="2.5" fill="none"
+        />
+      );
+      markers.push(
+        <path key={`c-br-tl-a-${i}`}
+          d={`M ${cx - delta} ${cy} H ${cx} V ${cy - delta}`}
+          stroke="white" strokeWidth="2.5" fill="none"
+        />
+      );
+    }
+    // Case: A bottom-left → B top-right
+    else if (rA.x === rB.x + rB.w && rA.y + rA.h === rB.y) {
+      const cx = rA.x * cellSize;
+      const cy = rA.y * cellSize + rA.h * cellSize;
+      markers.push(
+        <path key={`c-bl-tr-a-${i}`}
+          d={`M ${cx + delta} ${cy} H ${cx} V ${cy - delta}`}
+          stroke="white" strokeWidth="2.5" fill="none"
+        />
+      );
+      markers.push(
+        <path key={`c-tr-bl-a-${i}`}
+          d={`M ${cx - delta} ${cy} H ${cx} V ${cy + delta}`}
+          stroke="white" strokeWidth="2.5" fill="none"
+        />
+      );
+    }
+  }
+
+  return markers;
+}
+
+function getEdgeMarkers(rectangles, cellSize) {
+  const markers = [];
+
+  for (let i = 1; i < rectangles.length; i++) {
+    const rA = rectangles[i - 1];
+    const rB = rectangles[i];
 
     // Shared vertical edge
     if (rA.x + rA.w === rB.x) {
@@ -61,32 +95,24 @@ function getConnectionMarkers(rectangles, cellSize) {
       const overlapYMax = Math.min(rA.y + rA.h, rB.y + rB.h);
       if (overlapYMin < overlapYMax) {
         markers.push(
-          <line
-            key={`e-v-${i}`}
-            x1={rB.x * cellSize}
-            y1={overlapYMin * cellSize}
-            x2={rB.x * cellSize}
-            y2={overlapYMax * cellSize}
-            stroke="white"
-            strokeWidth="2.5"
+          <line key={`e-v-${i}`}
+            x1={rB.x * cellSize} y1={overlapYMin * cellSize}
+            x2={rB.x * cellSize} y2={overlapYMax * cellSize}
+            stroke="white" strokeWidth="2.5"
           />
         );
       }
     }
-    // Shared horizontal edge
+    // Shared horizontal edge (A below B)
     if (rA.y + rA.h === rB.y) {
       const overlapXMin = Math.max(rA.x, rB.x);
       const overlapXMax = Math.min(rA.x + rA.w, rB.x + rB.w);
       if (overlapXMin < overlapXMax) {
         markers.push(
-          <line
-            key={`e-h-above-${i}`}
-            x1={overlapXMin * cellSize}
-            y1={rB.y * cellSize}
-            x2={overlapXMax * cellSize}
-            y2={rB.y * cellSize}
-            stroke="white"
-            strokeWidth="2.5"
+          <line key={`e-h-above-${i}`}
+            x1={overlapXMin * cellSize} y1={rB.y * cellSize}
+            x2={overlapXMax * cellSize} y2={rB.y * cellSize}
+            stroke="white" strokeWidth="2.5"
           />
         );
       }
@@ -95,14 +121,10 @@ function getConnectionMarkers(rectangles, cellSize) {
       const overlapXMax = Math.min(rA.x + rA.w, rB.x + rB.w);
       if (overlapXMin < overlapXMax) {
         markers.push(
-          <line
-            key={`e-h-below-${i}`}
-            x1={overlapXMin * cellSize}
-            y1={rA.y * cellSize}
-            x2={overlapXMax * cellSize}
-            y2={rA.y * cellSize}
-            stroke="white"
-            strokeWidth="2.5"
+          <line key={`e-h-below-${i}`}
+            x1={overlapXMin * cellSize} y1={rA.y * cellSize}
+            x2={overlapXMax * cellSize} y2={rA.y * cellSize}
+            stroke="white" strokeWidth="2.5"
           />
         );
       }
@@ -249,8 +271,9 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
           />
         ))}
 
-        {/* Connection Area Markers */}
-        {isHovered && getConnectionMarkers(rectangles, cellSize)}
+        {/* Connection Area Markers - corners always visible, edges on hover */}
+        {getCornerMarkers(rectangles, cellSize)}
+        {isHovered && getEdgeMarkers(rectangles, cellSize)}
 
         {/* Grid lines */}
         {Array.from({ length: COLS + 1 }, (_, i) => (

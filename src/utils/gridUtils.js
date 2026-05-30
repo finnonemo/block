@@ -98,6 +98,7 @@ export const DEFAULT_PARAMS = {
   endMinH: 4,
   endMaxH: 8,
   overlapChance: 0,    // 0=Off, 1=On
+  cornerAmount: 2,     // 0, 1, or 2 corner connections allowed
 };
 
 // Build generation config from the UI parameters
@@ -108,7 +109,7 @@ export function buildConfigFromParams({
   midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0, midCurve = 50,
   endX = 15, endY = 5,
   endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
-  overlapChance = 0, cornerChance = 0,
+  overlapChance = 0, cornerChance = 0, cornerAmount = 2,
 }) {
   return {
     blockMin,
@@ -121,6 +122,7 @@ export function buildConfigFromParams({
     midMinW, midMaxW, midMinH, midMaxH, midCurve,
     endMinW, endMaxW, endMinH, endMaxH,
     allowOverlap: overlapChance > 0,
+    cornerAmount,
   };
 }
 
@@ -240,25 +242,22 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
     const overlaps = [0];
 
     for (let i = 1; i < amount; i++) {
-      const minOvReq = i === 1 ? 1 : 2;
+      const type = connectionTypes ? connectionTypes[i] : 'vertical';
       const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
-      if (maxOv >= minOvReq) {
-        const type = connectionTypes ? connectionTypes[i] : 'vertical';
-        if (type === 'horizontal' || type === 'overlap') {
-          // They must overlap horizontally, so overlapX >= 1
-          const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
-          overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
-        } else {
-          // Strict geometry: They must NOT overlap horizontally, so overlapX = 0
-          overlaps.push(0);
-        }
-      } else {
-        // If widths are too small to overlap, but it's a horizontal edge or overlap connection, fail this attempt
-        if (connectionTypes && (connectionTypes[i] === 'horizontal' || connectionTypes[i] === 'overlap')) {
+
+      if (type === 'horizontal' || type === 'overlap') {
+        // Must overlap horizontally (overlapX >= 1)
+        const minOvReq = Math.min(1, maxOv);
+        if (maxOv < 1) {
+          // Can't satisfy horizontal edge — fail this attempt
           overlaps.push(-1);
         } else {
-          overlaps.push(0);
+          const overlapAmount = Math.max(minOvReq, Math.ceil(rng() * maxOv));
+          overlaps.push(Math.min(overlapAmount, maxOv));
         }
+      } else {
+        // corner / vertical / null: must NOT overlap horizontally (overlapX = 0)
+        overlaps.push(0);
       }
     }
 
@@ -316,6 +315,10 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
       while (diff < 0) {
         let changed = false;
         for (let i = 1; i < amount && diff < 0; i++) {
+          const type = connectionTypes ? connectionTypes[i] : 'vertical';
+          const canOverlap = (type === 'horizontal' || type === 'overlap');
+          if (!canOverlap) continue;
+
           const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
           if (overlaps[i] < maxOv) { overlaps[i]++; diff++; changed = true; }
         }
@@ -382,16 +385,26 @@ function generateSinglePatternRects(cfg, rng) {
 
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
-  let cornerCount = 0;
+  
+  // 1. Determine exact number of corners to force
+  const numCorners = Math.min(cfg.cornerAmount ?? 2, amount - 1);
+  
+  // 2. Randomly pick indices for corners
+  const cornerIndices = new Set();
+  while (cornerIndices.size < numCorners) {
+    const idx = Math.floor(rng() * (amount - 1)) + 1;
+    cornerIndices.add(idx);
+  }
+
+  // 3. Fill connectionTypes
   for (let i = 1; i < amount; i++) {
-    const availableTypes = ['vertical', 'horizontal'];
-    if (cornerCount < 2) availableTypes.push('corner');
-    if (cfg.allowOverlap) availableTypes.push('overlap');
-    
-    // Pick with equal probability
-    const pickedType = availableTypes[Math.floor(rng() * availableTypes.length)];
-    if (pickedType === 'corner') cornerCount++;
-    connectionTypes[i] = pickedType;
+    if (cornerIndices.has(i)) {
+      connectionTypes[i] = 'corner';
+    } else {
+      const availableTypes = ['vertical', 'horizontal'];
+      if (cfg.allowOverlap) availableTypes.push('overlap');
+      connectionTypes[i] = availableTypes[Math.floor(rng() * availableTypes.length)];
+    }
   }
 
   const cfgAmt = { ...cfg, amount, connectionTypes, forcedStartH: startH, forcedEndH: endH, forcedStartW: startW, forcedEndW: endW, emergenceVal, exitVal };
@@ -426,7 +439,7 @@ function generateSinglePatternRects(cfg, rng) {
   for (let i = 0; i < amount; i++) {
     if (i > 0) x += widths[i - 1] - overlaps[i];
 
-    const h = heights[i], w = widths[i];
+    let h = heights[i], w = widths[i];
     const idealY = baseline[i];
     let y;
     let verticalEdge = false; // set true when same-Y is intentional (Type 1 Sub-A)
@@ -439,19 +452,34 @@ function generateSinglePatternRects(cfg, rng) {
       // ── Staircase (start height !== end height):
       //    Dynamic overlapping allows varied large blocks to perfectly follow the baseline trend
       const type = connectionTypes[i];
-      const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
       
-      const idealY = baseline[i];
-      const targetShare = ascending ? (idealY - prevY + h) : (prevY + prevH - idealY);
-      
-      const maxOv = Math.min(prevH, h) - 1;
-      const minOv = useHorizontalEdge ? 0 : 1; 
-      
-      const shareOffset = clamp(targetShare, minOv, maxOv);
-      
-      y = ascending
-        ? (prevY - h + shareOffset)
-        : (prevY + prevH - shareOffset);
+      if (type === 'corner') {
+        // Corner: zero shared rows — blocks touch diagonally only.
+        // ascending: B's bottom == A's top  → y = prevY - h
+        // descending: B's top == A's bottom → y = prevY + prevH
+        y = ascending ? (prevY - h) : (prevY + prevH);
+        
+        // If y is out of grid bounds, shrink the block height to fit
+        if (y < 0) {
+          // ascending out of top: shrink h so y = 0
+          heights[i] = Math.max(1, prevY);
+          y = 0;
+        } else if (y + heights[i] > ROWS) {
+          // descending out of bottom: shrink h to fit
+          heights[i] = Math.max(1, ROWS - y);
+        }
+        y = clamp(y, 0, ROWS - heights[i]);
+      } else {
+        const useHorizontalEdge = (type === 'horizontal');
+        const idealY = baseline[i];
+        const targetShare = ascending ? (idealY - prevY + h) : (prevY + prevH - idealY);
+        const maxOv = Math.min(prevH, h) - 1;
+        const minOv = useHorizontalEdge ? 0 : 1;
+        const shareOffset = clamp(targetShare, minOv, maxOv);
+        y = ascending
+          ? (prevY - h + shareOffset)
+          : (prevY + prevH - shareOffset);
+      }
 
     } else if (i === amount - 1) {
       // ── Block N-1 (last): anchored to exitY (End Height)
@@ -520,7 +548,7 @@ function generateSinglePatternRects(cfg, rng) {
       }
     }
 
-    y = clamp(y, 0, ROWS - h); // final grid-bounds safety
+    y = clamp(y, 0, ROWS - heights[i]); // final grid-bounds safety (use heights[i] in case it was mutated for corner)
 
     // Enforce no-same-Y — skip when intentional (vertical edge, last block)
     const isLastBlock = (i === amount - 1);
@@ -532,9 +560,9 @@ function generateSinglePatternRects(cfg, rng) {
       else if (up >= 0 && up > prevY - h) y = up;
     }
 
-    rects.push({ x, y, w, h });
+    rects.push({ x, y, w, h: heights[i] });
     prevY = y;
-    prevH = h;
+    prevH = heights[i];
   }
 
   return rects;
@@ -544,13 +572,31 @@ function isValidPattern(rects, cfg) {
   const amount = rects.length;
   if (amount < 2) return false;
 
+  const targetStartX = cfg.startX ?? 0;
+  const targetSpan = cfg.targetSpan ?? COLS;
+  const targetEndX = targetStartX + targetSpan;
+
+  // 1. Verify bounds, sizes, and anchors for all blocks
+  for (let i = 0; i < amount; i++) {
+    const r = rects[i];
+    if (r.w < 1 || r.h < 1) return false;
+    if (r.x < 0 || r.x + r.w > COLS) return false;
+    if (r.y < 0 || r.y + r.h > ROWS) return false;
+  }
+
+  // Verify first block start X
+  if (rects[0].x !== targetStartX) return false;
+
+  // Verify last block end X matches exactly (no clipping or gaps)
+  if (rects[amount - 1].x + rects[amount - 1].w !== targetEndX) return false;
+
   const emergenceVal =
     typeof cfg.emergenceVal === 'number'
       ? cfg.emergenceVal
       : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
   const exitVal = cfg.exitVal ?? emergenceVal;
 
-  // 1. Verify start and end heights / anchors
+  // 2. Verify start and end heights / anchors
   const expectedStartY = clamp(emergenceVal - rects[0].h, 0, ROWS - rects[0].h);
   if (rects[0].y !== expectedStartY) return false;
 
@@ -582,6 +628,11 @@ function isValidPattern(rects, cfg) {
     }
   }
 
+  // 3. Validate exact corner count if specified
+  if (typeof cfg.cornerAmount === 'number' && actualCorners !== cfg.cornerAmount) {
+    return false;
+  }
+
   // 4. Duplicate dimensions check for adjacent edge-connected blocks
   for (let i = 1; i < amount; i++) {
     const rA = rects[i - 1];
@@ -592,11 +643,21 @@ function isValidPattern(rects, cfg) {
     }
   }
 
-  // 5. Enforce staircase slope on both top and bottom edges
+  // 5. Enforce staircase slope on both top and bottom edges (exempt corners — they change direction naturally)
   const isTopFlatAllowed = (emergenceVal === 0 && exitVal === 0);
   const isBotFlatAllowed = (emergenceVal === ROWS && exitVal === ROWS);
 
+  // Build corner pair set for exemption
+  const cornerPairIndices = new Set();
   for (let i = 1; i < amount; i++) {
+    const rA = rects[i - 1], rB = rects[i];
+    const overlapX = Math.max(0, Math.min(rA.x + rA.w, rB.x + rB.w) - Math.max(rA.x, rB.x));
+    const isCorner = ((rA.y === rB.y + rB.h) || (rB.y === rA.y + rA.h)) && overlapX === 0;
+    if (isCorner) cornerPairIndices.add(i);
+  }
+
+  for (let i = 1; i < amount; i++) {
+    if (cornerPairIndices.has(i)) continue; // corners are exempt from slope check
     const rA = rects[i - 1];
     const rB = rects[i];
     if (!isTopFlatAllowed && rA.y === rB.y) {
@@ -612,16 +673,27 @@ function isValidPattern(rects, cfg) {
 
 export function generatePatternRects(cfg, rng = Math.random) {
   let rects = null;
+  let bestPositionCandidate = null; // valid position, but may not match corner count
+
   for (let attempt = 0; attempt < 1000; attempt++) {
-    // If we struggle to find a path, prioritize location by relaxing corner requirements
-    const currentCfg = attempt > 500 ? { ...cfg, targetCorners: 0 } : cfg;
+    // Phase 1 (0-499): enforce exact corner count
+    // Phase 2 (500-999): relax corner count, still enforce positions
+    const currentCfg = attempt > 500 ? { ...cfg, cornerAmount: undefined } : cfg;
 
     rects = generateSinglePatternRects(currentCfg, rng);
+
     if (isValidPattern(rects, currentCfg)) {
-      return rects;
+      return rects; // perfect — positions AND corner count satisfied
+    }
+
+    // Track best candidate where start/end positions are correct (corner count may be wrong)
+    if (bestPositionCandidate === null && isValidPattern(rects, { ...currentCfg, cornerAmount: undefined })) {
+      bestPositionCandidate = rects;
     }
   }
-  return rects; // fallback
+
+  // Last block position wins over corner count — return position-correct candidate if available
+  return bestPositionCandidate ?? rects;
 }
 
 export function syncBlocks(rects) {

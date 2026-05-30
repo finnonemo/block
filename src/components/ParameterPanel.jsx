@@ -155,13 +155,15 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
     const newParams = { ...params, [key]: val }
     
     if (key.includes('Max')) {
+      // Sliding Max below Min → push Min down to match
       const minKey = key.replace('Max', 'Min')
-      if (newParams[minKey] > val && val > 0) {
+      if (newParams[minKey] > val) {
         newParams[minKey] = val
       }
     } else if (key.includes('Min')) {
+      // Sliding Min above Max → push Max up to match
       const maxKey = key.replace('Min', 'Max')
-      if (newParams[maxKey] > 0 && newParams[maxKey] < val) {
+      if (newParams[maxKey] < val) {
         newParams[maxKey] = val
       }
     }
@@ -198,6 +200,19 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
             )}
           />
         </button>
+      </ParamRow>
+
+      {/* ── Connection Options ────────────────────────────────────────── */}
+      <ParamRow
+        label="Exact Corners"
+        hint="Exactly how many corner-to-corner connections to force on the canvas"
+      >
+        <ParamSlider
+          value={params.cornerAmount ?? 2}
+          min={0}
+          max={2}
+          onChange={v => set('cornerAmount', v)}
+        />
       </ParamRow>
 
       {/* ── Block Amount ────────────────────────────────────────────── */}
