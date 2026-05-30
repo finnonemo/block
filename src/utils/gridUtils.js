@@ -79,13 +79,17 @@ export const END_HEIGHT_OPTIONS = [
 // Default parameters
 export const DEFAULT_PARAMS = {
   blockMin: 3,    // Minimum number of blocks
-  blockMax: 5,    // Maximum number of blocks
+  blockMax: 8,    // Maximum number of blocks
   startX: 0,    // 0–15: left edge of first block (bottom-left corner X)
   startY: 15,   // 0–15: bottom edge of first block (bottom-left corner Y)
   startMinW: 1,
   startMaxW: 3,
   startMinH: 1,
   startMaxH: 3,
+  midMinW: 0,
+  midMaxW: 0,
+  midMinH: 0,
+  midMaxH: 0,
   endX: 15,   // 0–15: right edge of last block (bottom-right corner X)
   endY: 0,    // 0–15: bottom edge of last block (bottom-right corner Y)
   endMinW: 6,
@@ -97,9 +101,10 @@ export const DEFAULT_PARAMS = {
 
 // Build generation config from the UI parameters
 export function buildConfigFromParams({
-  blockMin = 3, blockMax = 5,
+  blockMin = 3, blockMax = 8,
   startX = 0, startY = 15,
   startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
+  midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0,
   endX = 15, endY = 5,
   endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
   overlapChance = 0, cornerChance = 0,
@@ -112,6 +117,7 @@ export function buildConfigFromParams({
     startX,                            // first block left-edge X
     targetSpan: (endX + 1) - startX,   // X columns from startX to endX inclusive
     startMinW, startMaxW, startMinH, startMaxH,
+    midMinW, midMaxW, midMinH, midMaxH,
     endMinW, endMaxW, endMinH, endMaxH,
     allowOverlap: overlapChance > 0,
   };
@@ -169,42 +175,51 @@ function makeHeights(cfg, rng) {
     const blocksToGenerate = hN_1 != null ? amount - 2 : amount - 1;
     let remaining = targetSum;
 
+    const middleHeights = [];
     for (let i = 0; i < blocksToGenerate - 1; i++) {
       const minLeft = blocksToGenerate - 1 - i;
       const maxH = Math.max(1, Math.min(14, remaining - minLeft));
-      const pool = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
+      
+      const userMin = cfg.midMinH || 1;
+      const userMax = cfg.midMaxH || 14;
+      const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= Math.min(userMax, maxH));
 
-      let picked = 1;
+      let picked = userMin;
       if (pool.length) {
-        const avgH = targetSum / blocksToGenerate;
-        const sortedPool = [...pool].sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
-        const subPool = sortedPool.slice(0, 3);
-        picked = subPool.length ? rand(subPool, rng) : rand(pool, rng);
+        picked = rand(pool, rng); // Pick completely random height bounded by constraints
       }
 
-      heights.push(picked);
+      middleHeights.push(picked);
       remaining -= picked;
     }
 
+    middleHeights.push(clamp(remaining, cfg.midMinH || 1, cfg.midMaxH || 14));
+
+    // Shuffle middle heights to remove order bias
+    for (let i = middleHeights.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [middleHeights[i], middleHeights[j]] = [middleHeights[j], middleHeights[i]];
+    }
+
+    heights.push(...middleHeights);
+
     if (hN_1 != null) {
-      heights.push(clamp(remaining, 1, 14)); // h_{N-2}
       heights.push(hN_1); // h_{N-1}
-    } else {
-      heights.push(clamp(remaining, 1, 14)); // h_{N-1}
     }
 
     return heights;
   }
 
   // Non-staircase
-  const minBound = Math.min(forcedStartH ?? 1, forcedEndH ?? 14);
-  const maxBound = Math.max(forcedStartH ?? 1, forcedEndH ?? 14);
-  const pool = ALLOWED_HEIGHTS.filter(h => h >= minBound && h <= maxBound);
-  const finalPool = pool.length ? pool : [forcedStartH ?? 1];
-  const h = Array(amount).fill(null).map(() => rand(finalPool, rng));
-  h.sort((a, b) => a - b);
-  if (forcedStartH != null) h[0] = clamp(forcedStartH, 1, 14);
-  if (forcedEndH != null) h[h.length - 1] = clamp(forcedEndH, 1, 14);
+  const h = Array(amount).fill(null).map((_, i) => {
+    if (i === 0 && forcedStartH != null) return clamp(forcedStartH, 1, 14);
+    if (i === amount - 1 && forcedEndH != null) return clamp(forcedEndH, 1, 14);
+    
+    const userMin = cfg.midMinH || 1;
+    const userMax = cfg.midMaxH || 14;
+    const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= userMax);
+    return pool.length ? rand(pool, rng) : userMin;
+  });
   return h;
 }
 
@@ -221,11 +236,11 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
     const widths = Array(amount).fill(0).map((_, i) => {
       if (i === 0 && forcedStartW != null) return clamp(forcedStartW, 1, targetSpan);
       if (i === amount - 1 && forcedEndW != null) return clamp(forcedEndW, 1, targetSpan);
-      const t = amount > 1 ? i / (amount - 1) : 0.5;
-      const targetW = startW + t * (endW - startW);
-      const pool = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
-      const poolSz = 3;
-      return rand(pool.slice(0, poolSz), rng);
+      
+      const userMin = connectionTypes ? (connectionTypes.midMinW || 1) : 1;
+      const userMax = connectionTypes ? (connectionTypes.midMaxW || 14) : 14;
+      const pool = ALLOWED_WIDTHS.filter(w => w >= userMin && w <= userMax);
+      return pool.length ? rand(pool, rng) : userMin;
     });
     // Widths are positional — no sort
     const overlaps = [0];
@@ -281,17 +296,32 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
   if (forcedStartW != null) widths[0] = clamp(forcedStartW, 1, targetSpan);
   if (forcedEndW != null) widths[amount - 1] = clamp(forcedEndW, 1, targetSpan);
 
+  const fbUserMin = connectionTypes ? (connectionTypes.midMinW || 1) : 1;
+  const fbUserMax = connectionTypes ? (connectionTypes.midMaxW || 14) : 14;
+  for (let i = 1; i < amount - 1; i++) {
+    widths[i] = clamp(widths[i], fbUserMin, fbUserMax);
+  }
+
   let diff = targetSpan - widths.reduce((a, b) => a + b, 0);
 
   if (amount > 2) {
     if (diff > 0) {
-      for (let i = 1; diff > 0; i = i === amount - 2 ? 1 : i + 1, diff--) widths[i]++;
+      for (let i = 1; i < amount - 1 && diff > 0; i++) {
+        while (diff > 0 && widths[i] < fbUserMax) { widths[i]++; diff--; }
+      }
+      // If still diff > 0, violate max constraint to fit the grid
+      for (let i = 1; i < amount - 1 && diff > 0; i++) {
+        widths[i]++; diff--;
+      }
     } else if (diff < 0) {
-      let borrowAttempt = 0;
-      for (let i = 1; diff < 0 && borrowAttempt < 1000; i = i === amount - 2 ? 1 : i + 1, borrowAttempt++) {
+      for (let i = amount - 2; i > 0 && diff < 0; i--) {
+        while (diff < 0 && widths[i] > fbUserMin) { widths[i]--; diff++; }
+      }
+      // If still diff < 0, violate min constraint to fit the grid
+      for (let i = amount - 2; i > 0 && diff < 0; i--) {
         if (widths[i] > 1) { widths[i]--; diff++; }
       }
-      // If middle blocks are completely squashed to 1, we are forced to borrow from start/end
+      // If we still need to borrow, borrow from start/end
       while (diff < 0) {
         if (widths[0] > 1) { widths[0]--; diff++; }
         else if (widths[amount - 1] > 1) { widths[amount - 1]--; diff++; }
@@ -352,8 +382,14 @@ function generateSinglePatternRects(cfg, rng) {
 
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
   const targetSpan = cfg.targetSpan ?? COLS;
+  
+  // Pack middle width constraints into connectionTypes so makeWidths can access them cleanly without changing signature
+  const connWithMidConstraints = [...connectionTypes];
+  connWithMidConstraints.midMinW = cfg.midMinW;
+  connWithMidConstraints.midMaxW = cfg.midMaxW;
+
   const { widths, overlaps } = makeWidths(
-    heights, amount, rng, flatBaseline, connectionTypes,
+    heights, amount, rng, flatBaseline, connWithMidConstraints,
     targetSpan, startW, endW, cfg.allowOverlap
   );
 
@@ -720,9 +756,11 @@ export function extractBlockGroups(blocks) {
 
 // ─── Seed encode / decode ────────────────────────────────────────────────────
 // V4 format: 19 bytes → 26 B62 chars (explicit bounding coords)
+// V5 format: 21 bytes → 29 B62 chars (adds middle block constraints)
 
 const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const B62_LEN_V4 = 26; // 19 bytes
+const B62_LEN_V5 = 29; // 21 bytes
 
 function bytesToB62(bytes, targetLen) {
   let n = 0n;
@@ -751,8 +789,9 @@ function bytesToHex(r, g, b) {
 
 export function encodeSeed(seed, params, colorA, colorB) {
   const {
-    blockMin = 3, blockMax = 5, overlapChance,
+    blockMin = 3, blockMax = 8, overlapChance,
     startX = 0, startY = 15, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
+    midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0,
     endX = 15, endY = 0, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
   } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
@@ -768,22 +807,28 @@ export function encodeSeed(seed, params, colorA, colorB) {
   const startHByte = (startMinH & 0xF) | ((startMaxH & 0xF) << 4);
   const endWByte = (endMinW & 0xF) | ((endMaxW & 0xF) << 4);
   const endHByte = (endMinH & 0xF) | ((endMaxH & 0xF) << 4);
+  
+  const midWByte = (midMinW & 0xF) | ((midMaxW & 0xF) << 4);
+  const midHByte = (midMinH & 0xF) | ((midMaxH & 0xF) << 4);
 
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
     blockCountByte, startCoordByte, overlapChance, connectionByte,
     startWByte, startHByte, endWByte, endHByte, endCoordByte,
-    ar, ag, ab, br, bg, bb,
+    ar, ag, ab, br, bg, bb, midWByte, midHByte
   ]);
-  return bytesToB62(buf, B62_LEN_V4);
+  return bytesToB62(buf, B62_LEN_V5);
 }
 
 export function decodeSeed(str) {
   try {
     const s = str.trim();
-    if (s.length !== B62_LEN_V4 || ![...s].every(c => B62.includes(c))) return null;
+    const isV4 = s.length === B62_LEN_V4;
+    const isV5 = s.length === B62_LEN_V5;
+    
+    if ((!isV4 && !isV5) || ![...s].every(c => B62.includes(c))) return null;
 
-    const byteCount = 19;
+    const byteCount = isV5 ? 21 : 19;
     const b = b62ToBytes(s, byteCount);
     const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
 
@@ -803,6 +848,10 @@ export function decodeSeed(str) {
       endMaxH: (b[11] >> 4) & 0xF,
       endX: b[12] & 0xF,
       endY: (b[12] >> 4) & 0xF,
+      midMinW: isV5 ? (b[19] & 0xF) : 0,
+      midMaxW: isV5 ? ((b[19] >> 4) & 0xF) : 0,
+      midMinH: isV5 ? (b[20] & 0xF) : 0,
+      midMaxH: isV5 ? ((b[20] >> 4) & 0xF) : 0,
     };
     const colorA = bytesToHex(b[13], b[14], b[15]);
     const colorB = bytesToHex(b[16], b[17], b[18]);

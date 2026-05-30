@@ -152,7 +152,21 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
   const { complexity, overlapChance, cornerChance } = params
 
   function set(key, val) {
-    onParamsChange({ ...params, [key]: val })
+    const newParams = { ...params, [key]: val }
+    
+    if (key.includes('Max')) {
+      const minKey = key.replace('Max', 'Min')
+      if (newParams[minKey] > val && val > 0) {
+        newParams[minKey] = val
+      }
+    } else if (key.includes('Min')) {
+      const maxKey = key.replace('Min', 'Max')
+      if (newParams[maxKey] > 0 && newParams[maxKey] < val) {
+        newParams[maxKey] = val
+      }
+    }
+
+    onParamsChange(newParams)
   }
 
   const [activeSlot, setActiveSlot] = useState('A')
@@ -193,8 +207,8 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       >
         <ParamSlider
           value={params.blockMin ?? 3}
-          min={2}
-          max={15}
+          min={3}
+          max={8}
           onChange={v => set('blockMin', v)}
         />
       </ParamRow>
@@ -203,9 +217,9 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         hint="Maximum number of blocks to generate"
       >
         <ParamSlider
-          value={params.blockMax ?? 5}
-          min={2}
-          max={15}
+          value={params.blockMax ?? 8}
+          min={3}
+          max={8}
           onChange={v => set('blockMax', v)}
         />
       </ParamRow>
@@ -234,6 +248,23 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         </ParamRow>
         <ParamRow label="Max Height" hint="Maximum height of the first block">
           <ParamSlider value={params.startMaxH ?? 8} min={1} max={14} onChange={v => set('startMaxH', v)} />
+        </ParamRow>
+      </div>
+
+      {/* ── Middle Blocks ────────────────────────────────────────────────── */}
+      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
+        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">Middle Blocks</h4>
+        <ParamRow label="Min Width" hint="Minimum width of middle blocks (0 = Random)">
+          <ParamSlider value={params.midMinW ?? 0} min={0} max={14} onChange={v => set('midMinW', v)} />
+        </ParamRow>
+        <ParamRow label="Max Width" hint="Maximum width of middle blocks (0 = Random)">
+          <ParamSlider value={params.midMaxW ?? 0} min={0} max={14} onChange={v => set('midMaxW', v)} />
+        </ParamRow>
+        <ParamRow label="Min Height" hint="Minimum height of middle blocks (0 = Random)">
+          <ParamSlider value={params.midMinH ?? 0} min={0} max={14} onChange={v => set('midMinH', v)} />
+        </ParamRow>
+        <ParamRow label="Max Height" hint="Maximum height of middle blocks (0 = Random)">
+          <ParamSlider value={params.midMaxH ?? 0} min={0} max={14} onChange={v => set('midMaxH', v)} />
         </ParamRow>
       </div>
 
