@@ -90,6 +90,7 @@ export const DEFAULT_PARAMS = {
   midMaxW: 0,
   midMinH: 0,
   midMaxH: 0,
+  midCurve: 50,
   endX: 15,   // 0–15: right edge of last block (bottom-right corner X)
   endY: 0,    // 0–15: bottom edge of last block (bottom-right corner Y)
   endMinW: 6,
@@ -104,7 +105,7 @@ export function buildConfigFromParams({
   blockMin = 3, blockMax = 8,
   startX = 0, startY = 15,
   startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
-  midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0,
+  midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0, midCurve = 50,
   endX = 15, endY = 5,
   endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
   overlapChance = 0, cornerChance = 0,
@@ -117,7 +118,7 @@ export function buildConfigFromParams({
     startX,                            // first block left-edge X
     targetSpan: (endX + 1) - startX,   // X columns from startX to endX inclusive
     startMinW, startMaxW, startMinH, startMaxH,
-    midMinW, midMaxW, midMinH, midMaxH,
+    midMinW, midMaxW, midMinH, midMaxH, midCurve,
     endMinW, endMaxW, endMinH, endMaxH,
     allowOverlap: overlapChance > 0,
   };
@@ -167,41 +168,48 @@ function makeHeights(cfg, rng) {
 
     const heights = [h0];
     const hN_1 = forcedEndH != null ? clamp(forcedEndH, 1, 14) : null;
-
-    if (hN_1 != null) {
-      targetSum -= hN_1;
-    }
-
     const blocksToGenerate = hN_1 != null ? amount - 2 : amount - 1;
-    let remaining = targetSum;
 
     const middleHeights = [];
-    for (let i = 0; i < blocksToGenerate - 1; i++) {
-      const minLeft = blocksToGenerate - 1 - i;
-      const maxH = Math.max(1, Math.min(14, remaining - minLeft));
+    const userMin = cfg.midMinH || 1;
+    const userMax = cfg.midMaxH || 14;
+    
+    for (let i = 0; i < blocksToGenerate; i++) {
+      const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= userMax);
+      middleHeights.push(pool.length ? rand(pool, rng) : userMin);
+    }
+
+    // Sort middleHeights based on midCurve
+    const curve = cfg.midCurve ?? 50;
+    const power = Math.pow(10, (curve - 50) / 50); // Maps 0->0.1, 50->1, 100->10
+    const N = middleHeights.length;
+    const sorted = [];
+    const pool = [...middleHeights];
+    let currentSum = 0;
+    const totalMidSum = pool.reduce((a, b) => a + b, 0);
+
+    for (let i = 0; i < N; i++) {
+      const targetY = totalMidSum * Math.pow((i + 1) / N, power);
       
-      const userMin = cfg.midMinH || 1;
-      const userMax = cfg.midMaxH || 14;
-      const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= Math.min(userMax, maxH));
-
-      let picked = userMin;
-      if (pool.length) {
-        picked = rand(pool, rng); // Pick completely random height bounded by constraints
+      let bestIdx = 0;
+      let minDiff = Infinity;
+      // If curve is exactly 50, we introduce a slight randomness to ties or near-ties to keep it organic
+      for (let j = 0; j < pool.length; j++) {
+        const diff = Math.abs((currentSum + pool[j]) - targetY);
+        // Add tiny random noise if curve is close to 50 to avoid repetitive stairs
+        const noise = (Math.abs(curve - 50) < 5) ? (rng() * 0.1) : 0; 
+        if (diff + noise < minDiff) {
+          minDiff = diff + noise;
+          bestIdx = j;
+        }
       }
-
-      middleHeights.push(picked);
-      remaining -= picked;
+      
+      const picked = pool.splice(bestIdx, 1)[0];
+      sorted.push(picked);
+      currentSum += picked;
     }
 
-    middleHeights.push(clamp(remaining, cfg.midMinH || 1, cfg.midMaxH || 14));
-
-    // Shuffle middle heights to remove order bias
-    for (let i = middleHeights.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [middleHeights[i], middleHeights[j]] = [middleHeights[j], middleHeights[i]];
-    }
-
-    heights.push(...middleHeights);
+    heights.push(...sorted);
 
     if (hN_1 != null) {
       heights.push(hN_1); // h_{N-1}
@@ -250,24 +258,17 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
       const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
       if (maxOv >= minOvReq) {
         const type = connectionTypes ? connectionTypes[i] : 'vertical';
-        if (type === 'horizontal') {
-          // Horizontal Edge Connect: They must overlap horizontally, so overlapX >= 1
+        if (type === 'horizontal' || type === 'overlap') {
+          // They must overlap horizontally, so overlapX >= 1
           const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
           overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
         } else {
-          // Vertical Edge Connect or Corner
-          if (allowOverlap && rng() < 0.5) {
-            // Randomly allow horizontal overlap if 2D overlap is enabled
-            const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
-            overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
-          } else {
-            // Strict geometry: They must NOT overlap horizontally, so overlapX = 0
-            overlaps.push(0);
-          }
+          // Strict geometry: They must NOT overlap horizontally, so overlapX = 0
+          overlaps.push(0);
         }
       } else {
-        // If widths are too small to overlap, but it's a horizontal edge connection, fail this attempt
-        if (connectionTypes && connectionTypes[i] === 'horizontal') {
+        // If widths are too small to overlap, but it's a horizontal edge or overlap connection, fail this attempt
+        if (connectionTypes && (connectionTypes[i] === 'horizontal' || connectionTypes[i] === 'overlap')) {
           overlaps.push(-1);
         } else {
           overlaps.push(0);
@@ -282,7 +283,7 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
 
     if (attempt < 400 || strictNoDupDims) {
       const hasDup = widths.some(
-        (w, i) => i > 0 && overlaps[i] === 0 && w === widths[i - 1] && heights[i] === heights[i - 1]
+        (w, i) => i > 0 && w === widths[i - 1] && heights[i] === heights[i - 1]
       );
       if (hasDup) continue;
     }
@@ -290,49 +291,83 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
     return { widths, overlaps };
   }
 
-  // Fallback: even split, positional (no sort)
-  const base = Math.floor(targetSpan / amount);
-  const widths = Array(amount).fill(base);
-  if (forcedStartW != null) widths[0] = clamp(forcedStartW, 1, targetSpan);
-  if (forcedEndW != null) widths[amount - 1] = clamp(forcedEndW, 1, targetSpan);
-
+  // Fallback: randomized bottom-up expansion
   const fbUserMin = connectionTypes ? (connectionTypes.midMinW || 1) : 1;
   const fbUserMax = connectionTypes ? (connectionTypes.midMaxW || 14) : 14;
-  for (let i = 1; i < amount - 1; i++) {
-    widths[i] = clamp(widths[i], fbUserMin, fbUserMax);
-  }
 
+  const widths = Array(amount).fill(1);
+  if (forcedStartW != null) widths[0] = clamp(forcedStartW, 1, targetSpan);
+  if (forcedEndW != null) widths[amount - 1] = clamp(forcedEndW, 1, targetSpan);
+  for (let i = 1; i < amount - 1; i++) widths[i] = fbUserMin;
+
+  let overlaps = Array(amount).fill(0);
   let diff = targetSpan - widths.reduce((a, b) => a + b, 0);
 
   if (amount > 2) {
     if (diff > 0) {
-      for (let i = 1; i < amount - 1 && diff > 0; i++) {
-        while (diff > 0 && widths[i] < fbUserMax) { widths[i]++; diff--; }
+      let available = [];
+      for (let i = 1; i < amount - 1; i++) if (widths[i] < fbUserMax) available.push(i);
+      
+      while (diff > 0 && available.length > 0) {
+        const i = available[Math.floor(rng() * available.length)];
+        widths[i]++;
+        diff--;
+        if (widths[i] >= fbUserMax) available = available.filter(x => x !== i);
       }
+      
       // If still diff > 0, violate max constraint to fit the grid
-      for (let i = 1; i < amount - 1 && diff > 0; i++) {
-        widths[i]++; diff--;
+      if (diff > 0) {
+        available = [];
+        for (let i = 1; i < amount - 1; i++) available.push(i);
+        while (diff > 0 && available.length > 0) {
+          const i = available[Math.floor(rng() * available.length)];
+          widths[i]++;
+          diff--;
+        }
       }
     } else if (diff < 0) {
-      for (let i = amount - 2; i > 0 && diff < 0; i--) {
-        while (diff < 0 && widths[i] > fbUserMin) { widths[i]--; diff++; }
-      }
-      // If still diff < 0, violate min constraint to fit the grid
-      for (let i = amount - 2; i > 0 && diff < 0; i--) {
-        if (widths[i] > 1) { widths[i]--; diff++; }
-      }
-      // If we still need to borrow, borrow from start/end
+      // 1. Try to absorb diff by overlapping horizontally
       while (diff < 0) {
-        if (widths[0] > 1) { widths[0]--; diff++; }
-        else if (widths[amount - 1] > 1) { widths[amount - 1]--; diff++; }
-        else break;
+        let changed = false;
+        for (let i = 1; i < amount && diff < 0; i++) {
+          const maxOv = Math.max(0, Math.min(widths[i - 1], widths[i]) - 1);
+          if (overlaps[i] < maxOv) { overlaps[i]++; diff++; changed = true; }
+        }
+        if (!changed) break;
+      }
+      // 2. Squash middle blocks down to userMin
+      while (diff < 0) {
+        let changed = false;
+        for (let i = amount - 2; i > 0 && diff < 0; i--) {
+          const minW = Math.max(fbUserMin, (i > 0 ? overlaps[i] : 0) + 1, (i < amount - 1 ? overlaps[i+1] : 0) + 1);
+          if (widths[i] > minW) { widths[i]--; diff++; changed = true; }
+        }
+        if (!changed) break;
+      }
+      // 3. Squash middle blocks down to 1 (violate userMin)
+      while (diff < 0) {
+        let changed = false;
+        for (let i = amount - 2; i > 0 && diff < 0; i--) {
+          const minW = Math.max(1, (i > 0 ? overlaps[i] : 0) + 1, (i < amount - 1 ? overlaps[i+1] : 0) + 1);
+          if (widths[i] > minW) { widths[i]--; diff++; changed = true; }
+        }
+        if (!changed) break;
+      }
+      // 4. If we still need to borrow, borrow from start/end
+      while (diff < 0) {
+        let changed = false;
+        const minW0 = Math.max(1, overlaps[1] + 1);
+        if (widths[0] > minW0) { widths[0]--; diff++; changed = true; }
+        const minWEnd = Math.max(1, overlaps[amount - 1] + 1);
+        if (widths[amount - 1] > minWEnd && diff < 0) { widths[amount - 1]--; diff++; changed = true; }
+        if (!changed) break;
       }
     }
   } else {
     for (let i = 0; diff > 0; i = (i + 1) % amount, diff--) widths[i]++;
   }
 
-  return { widths, overlaps: Array(amount).fill(0) };
+  return { widths, overlaps };
 }
 
 // ─── Public generation ───────────────────────────────────────────────────────
@@ -361,20 +396,16 @@ function generateSinglePatternRects(cfg, rng) {
 
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
-  const targetCorners = cfg.targetCorners !== undefined ? cfg.targetCorners : Math.floor(rng() * 3);
-  const indices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
-  for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [indices[i], indices[j]] = [indices[j], indices[i]];
-  }
-  const cornerIndices = new Set(indices.slice(0, Math.min(targetCorners, amount - 1)));
-
+  let cornerCount = 0;
   for (let i = 1; i < amount; i++) {
-    if (cornerIndices.has(i)) {
-      connectionTypes[i] = 'corner';
-    } else {
-      connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
-    }
+    const availableTypes = ['vertical', 'horizontal'];
+    if (cornerCount < 2) availableTypes.push('corner');
+    if (cfg.allowOverlap) availableTypes.push('overlap');
+    
+    // Pick with equal probability
+    const pickedType = availableTypes[Math.floor(rng() * availableTypes.length)];
+    if (pickedType === 'corner') cornerCount++;
+    connectionTypes[i] = pickedType;
   }
 
   const cfgAmt = { ...cfg, amount, connectionTypes, forcedStartH: startH, forcedEndH: endH, forcedStartW: startW, forcedEndW: endW, emergenceVal, exitVal };
@@ -420,14 +451,21 @@ function generateSinglePatternRects(cfg, rng) {
 
     } else if (isStaircase) {
       // ── Staircase (start height !== end height):
-      //    🟡 corner / horizontal → 0 shared rows: y = prevY−h / prevY+prevH
-      //    🔵 vertical            → share 1 row (i=1) or 2 rows (i>1)
+      //    Dynamic overlapping allows varied large blocks to perfectly follow the baseline trend
       const type = connectionTypes[i];
       const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
-      const shareOffset = i === 1 ? 1 : 2;
+      
+      const idealY = baseline[i];
+      const targetShare = ascending ? (idealY - prevY + h) : (prevY + prevH - idealY);
+      
+      const maxOv = Math.min(prevH, h) - 1;
+      const minOv = useHorizontalEdge ? 0 : 1; 
+      
+      const shareOffset = clamp(targetShare, minOv, maxOv);
+      
       y = ascending
-        ? (useHorizontalEdge ? prevY - h : prevY - h + shareOffset)
-        : (useHorizontalEdge ? prevY + prevH : prevY + prevH - shareOffset);
+        ? (prevY - h + shareOffset)
+        : (prevY + prevH - shareOffset);
 
     } else if (i === amount - 1) {
       // ── Block N-1 (last): anchored to exitY (End Height)
@@ -757,10 +795,12 @@ export function extractBlockGroups(blocks) {
 // ─── Seed encode / decode ────────────────────────────────────────────────────
 // V4 format: 19 bytes → 26 B62 chars (explicit bounding coords)
 // V5 format: 21 bytes → 29 B62 chars (adds middle block constraints)
+// V6 format: 22 bytes → 30 B62 chars (adds curve parameter)
 
 const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const B62_LEN_V4 = 26; // 19 bytes
 const B62_LEN_V5 = 29; // 21 bytes
+const B62_LEN_V6 = 30; // 22 bytes
 
 function bytesToB62(bytes, targetLen) {
   let n = 0n;
@@ -791,7 +831,7 @@ export function encodeSeed(seed, params, colorA, colorB) {
   const {
     blockMin = 3, blockMax = 8, overlapChance,
     startX = 0, startY = 15, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
-    midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0,
+    midMinW = 0, midMaxW = 0, midMinH = 0, midMaxH = 0, midCurve = 50,
     endX = 15, endY = 0, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
   } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
@@ -815,9 +855,9 @@ export function encodeSeed(seed, params, colorA, colorB) {
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
     blockCountByte, startCoordByte, overlapChance, connectionByte,
     startWByte, startHByte, endWByte, endHByte, endCoordByte,
-    ar, ag, ab, br, bg, bb, midWByte, midHByte
+    ar, ag, ab, br, bg, bb, midWByte, midHByte, Math.max(0, Math.min(100, midCurve))
   ]);
-  return bytesToB62(buf, B62_LEN_V5);
+  return bytesToB62(buf, B62_LEN_V6);
 }
 
 export function decodeSeed(str) {
@@ -825,10 +865,11 @@ export function decodeSeed(str) {
     const s = str.trim();
     const isV4 = s.length === B62_LEN_V4;
     const isV5 = s.length === B62_LEN_V5;
+    const isV6 = s.length === B62_LEN_V6;
     
-    if ((!isV4 && !isV5) || ![...s].every(c => B62.includes(c))) return null;
+    if ((!isV4 && !isV5 && !isV6) || ![...s].every(c => B62.includes(c))) return null;
 
-    const byteCount = isV5 ? 21 : 19;
+    const byteCount = isV6 ? 22 : (isV5 ? 21 : 19);
     const b = b62ToBytes(s, byteCount);
     const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
 
@@ -848,10 +889,11 @@ export function decodeSeed(str) {
       endMaxH: (b[11] >> 4) & 0xF,
       endX: b[12] & 0xF,
       endY: (b[12] >> 4) & 0xF,
-      midMinW: isV5 ? (b[19] & 0xF) : 0,
-      midMaxW: isV5 ? ((b[19] >> 4) & 0xF) : 0,
-      midMinH: isV5 ? (b[20] & 0xF) : 0,
-      midMaxH: isV5 ? ((b[20] >> 4) & 0xF) : 0,
+      midMinW: isV5 || isV6 ? (b[19] & 0xF) : 0,
+      midMaxW: isV5 || isV6 ? ((b[19] >> 4) & 0xF) : 0,
+      midMinH: isV5 || isV6 ? (b[20] & 0xF) : 0,
+      midMaxH: isV5 || isV6 ? ((b[20] >> 4) & 0xF) : 0,
+      midCurve: isV6 ? b[21] : 50,
     };
     const colorA = bytesToHex(b[13], b[14], b[15]);
     const colorB = bytesToHex(b[16], b[17], b[18]);

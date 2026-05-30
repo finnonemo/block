@@ -266,6 +266,9 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         <ParamRow label="Max Height" hint="Maximum height of middle blocks (0 = Random)">
           <ParamSlider value={params.midMaxH ?? 0} min={0} max={14} onChange={v => set('midMaxH', v)} />
         </ParamRow>
+        <ParamRow label="Curve" hint="Growth curve (0 = steep, 50 = linear, 100 = late drop)">
+          <ParamSlider value={params.midCurve ?? 50} min={0} max={100} onChange={v => set('midCurve', v)} />
+        </ParamRow>
       </div>
 
       {/* ── End Block ──────────────────────────────────────────────────── */}
