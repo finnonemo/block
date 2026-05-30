@@ -92,8 +92,8 @@ export const DEFAULT_PARAMS = {
   endMaxW:       10,
   endMinH:       4,
   endMaxH:       8,
+  overlapChance: 0,    // 0=Off, 1=On
   cornerChance:  0,    // 0–3 exact corner connections
-  horizontalChance: 0, // 0-3 exact horizontal connections
 };
 
 // Build generation config from the UI parameters
@@ -103,7 +103,7 @@ export function buildConfigFromParams({
   startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
   endX = 16,  endY = 6,
   endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
-  cornerChance = 0, horizontalChance = 0,
+  overlapChance = 0, cornerChance = 0,
 }) {
   return {
     blockMin,
@@ -114,8 +114,8 @@ export function buildConfigFromParams({
     targetSpan:   endX - startX,       // X columns from startX to endX
     startMinW, startMaxW, startMinH, startMaxH,
     endMinW, endMaxW, endMinH, endMaxH,
+    allowOverlap: overlapChance > 0,
     targetCorners: cornerChance,
-    horizontalChance,
   };
 }
 
@@ -209,7 +209,7 @@ function makeHeights(cfg, rng) {
   return h;
 }
 
-function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null) {
+function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null, allowOverlap = false) {
   const maxW     = Math.max(1, targetSpan - amount + 1);
   const allowedW = Array.from({ length: maxW }, (_, i) => i + 1);
 
@@ -241,8 +241,15 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
           const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
           overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
         } else {
-          // Vertical Edge Connect or Corner: They must NOT overlap horizontally, so overlapX = 0
-          overlaps.push(0);
+          // Vertical Edge Connect or Corner
+          if (allowOverlap && rng() < 0.5) {
+            // Randomly allow horizontal overlap if 2D overlap is enabled
+            const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
+            overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
+          } else {
+            // Strict geometry: They must NOT overlap horizontally, so overlapX = 0
+            overlaps.push(0);
+          }
         }
       } else {
         // If widths are too small to overlap, but it's a horizontal edge connection, fail this attempt
@@ -318,20 +325,16 @@ function generateSinglePatternRects(cfg, rng) {
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
   const targetCorners = cfg.targetCorners ?? 0;
-  const targetHorizontals = cfg.horizontalChance ?? 0;
   const indices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
   const cornerIndices = new Set(indices.slice(0, Math.min(targetCorners, amount - 1)));
-  const horizontalIndices = new Set(indices.slice(cornerIndices.size, Math.min(targetCorners + targetHorizontals, amount - 1)));
 
   for (let i = 1; i < amount; i++) {
     if (cornerIndices.has(i)) {
       connectionTypes[i] = 'corner';
-    } else if (horizontalIndices.has(i)) {
-      connectionTypes[i] = 'horizontal';
     } else {
       connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
     }
@@ -344,7 +347,7 @@ function generateSinglePatternRects(cfg, rng) {
   const targetSpan   = cfg.targetSpan ?? COLS;
   const { widths, overlaps } = makeWidths(
     heights, amount, rng, flatBaseline, connectionTypes,
-    targetSpan, startW, endW
+    targetSpan, startW, endW, cfg.allowOverlap
   );
 
   // ── Baseline Y positions — linear interpolation from startY to exitY ─────
@@ -400,21 +403,32 @@ function generateSinglePatternRects(cfg, rng) {
         const distAbove = Math.abs(above - exitY);
         const distBelow = Math.abs(below - exitY);
         
+        let targetY;
         if (okAbove && okBelow) {
           // 80% chance to step towards the goal, 20% chance to step away (for randomness)
           const preferAbove = distAbove < distBelow;
           if (preferAbove) {
-            y = rng() < 0.8 ? above : below;
+            targetY = rng() < 0.8 ? above : below;
           } else {
-            y = rng() < 0.8 ? below : above;
+            targetY = rng() < 0.8 ? below : above;
           }
         } else if (okAbove) {
-          y = above;
+          targetY = above;
         } else if (okBelow) {
-          y = below;
+          targetY = below;
         } else {
           // Dead end, fallback to above and let grid clamping handle it
-          y = above; 
+          targetY = above; 
+        }
+
+        if (cfg.allowOverlap && rng() < 0.5) {
+          // Randomly force it into the vertical overlap region if 2D overlap is enabled
+          const edgeLo = clamp(prevY - h + 1, 0, ROWS - h);
+          const edgeHi = clamp(prevY + prevH - 1, 0, ROWS - h);
+          if (edgeLo <= edgeHi) y = randRange(edgeLo, edgeHi, rng);
+          else y = targetY;
+        } else {
+          y = targetY;
         }
 
       } else {
@@ -739,7 +753,7 @@ function bytesToHex(r, g, b) {
 
 export function encodeSeed(seed, params, colorA, colorB) {
   const {
-    blockMin = 3, blockMax = 5, overlapChance, cornerChance, horizontalChance = 0,
+    blockMin = 3, blockMax = 5, overlapChance, cornerChance,
     startX = 0, startY = 10, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
     endX = 16, endY = 6, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
   } = params;
@@ -750,7 +764,7 @@ export function encodeSeed(seed, params, colorA, colorB) {
   const startCoordByte = (startX & 0xF) | ((startY & 0xF) << 4);
   const endCoordByte   = ((endX - 1) & 0xF) | (((endY - 1) & 0xF) << 4);
   
-  const connectionByte = (cornerChance & 0x3) | ((horizontalChance & 0x3) << 2);
+  const connectionByte = (cornerChance & 0x3);
 
   const startWByte = (startMinW & 0xF) | ((startMaxW & 0xF) << 4);
   const startHByte = (startMinH & 0xF) | ((startMaxH & 0xF) << 4);
@@ -790,7 +804,6 @@ export function decodeSeed(str) {
         startY:         (b[5] >> 4) & 0xF,
         overlapChance:  b[6],
         cornerChance:   b[7] & 0x3,
-        horizontalChance: (b[7] >> 2) & 0x3,
         startMinW:      b[8] & 0xF,
         startMaxW:      (b[8] >> 4) & 0xF,
         startMinH:      b[9] & 0xF,

@@ -165,18 +165,25 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
   return (
     <div className="space-y-5">
 
-      {/* ── Overlap Area ───────────────────────────────────────────── */}
+      {/* ── 2D Overlap Area ───────────────────────────────────────────── */}
       <ParamRow
-        label="Overlap Area"
-        hint="How much each block overlaps the next horizontally"
+        label="2D Overlap Area"
+        hint="Allow blocks to physically overlap in 2D space"
       >
-        <ParamSlider
-          value={overlapChance}
-          min={0}
-          max={10}
-          onChange={v => set('overlapChance', v)}
-          formatLabel={v => `${v * 10}%`}
-        />
+        <button
+          onClick={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
+          className={cn(
+            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+            overlapChance === 1 ? 'bg-[#50cfff]' : 'bg-[#1e2d3d]'
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
+              overlapChance === 1 ? 'translate-x-4' : 'translate-x-0'
+            )}
+          />
+        </button>
       </ParamRow>
 
       {/* ── Block Amount ────────────────────────────────────────────── */}
@@ -220,22 +227,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
-      {/* ── Horizontal Edge Chance ─────────────────────────────────── */}
-      <ParamRow
-        label="Horizontal Edge Connect"
-        hint="Exact number of horizontal edge-to-edge connections"
-      >
-        <SegGroup
-          options={[
-            { value: 0, label: '0', sub: 'None' },
-            { value: 1, label: '1', sub: '' },
-            { value: 2, label: '2', sub: '' },
-            { value: 3, label: '3', sub: 'Max' },
-          ]}
-          value={params.horizontalChance ?? 0}
-          onChange={v => set('horizontalChance', v)}
-        />
-      </ParamRow>
+
 
       {/* ── Start Block ────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
