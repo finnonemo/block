@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid } from 'lucide-react'
+import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid, Download, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PatternCanvas } from '@/components/PatternCanvas'
@@ -23,8 +23,12 @@ import {
 import {
   CATEGORIES,
   loadGallery,
+  fetchSharedGallery,
+  mergeGalleries,
   addTemplate,
   removeTemplate,
+  exportGalleryFile,
+  importGalleryData,
 } from '@/utils/gallery'
 
 const DEFAULT_PAIR = COLOR_PAIRS[0] // Green / Navy
@@ -63,7 +67,16 @@ export default function AdminView({ onSwitchMode }) {
 
   const { seed, params, colorA, colorB, rectangles, blocks } = state
 
-  const refreshGallery = useCallback(() => setGallery(loadGallery()), [])
+  // On mount: fetch shared gallery.json and merge with any local additions
+  useEffect(() => {
+    fetchSharedGallery().then(shared => {
+      setGallery(prev => mergeGalleries(shared, prev))
+    })
+  }, [])
+
+  const refreshGallery = useCallback(() => {
+    fetchSharedGallery().then(shared => setGallery(mergeGalleries(shared, loadGallery())))
+  }, [])
 
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
@@ -103,6 +116,7 @@ export default function AdminView({ onSwitchMode }) {
     const newRects = extractBlockGroups(blocks)
     setState(s => ({
       ...s,
+      seed: null,          // null seed signals image/manual canvas — not seed-regenerable
       blocks,
       rectangles: newRects,
       ...(newA ? { colorA: newA } : {}),
@@ -123,25 +137,63 @@ export default function AdminView({ onSwitchMode }) {
     }
   }, [rectangles, colorA, colorB])
 
-  const currentSeed = seed != null ? encodeSeed(seed, params, colorA, colorB) : null
+  const currentSeed    = seed != null ? encodeSeed(seed, params, colorA, colorB) : null
+  const hasActiveCells = blocks.some(v => v === 0)
+  const canSave        = currentSeed != null || hasActiveCells   // seed-based OR image/painted
 
   const handleSaveToGallery = useCallback((name, category) => {
-    if (!currentSeed) return
-    const newGallery = addTemplate({ name, category, seed: currentSeed })
+    let newGallery
+    if (currentSeed) {
+      newGallery = addTemplate({ name, category, seed: currentSeed })
+    } else {
+      // Image-derived or hand-painted: save the actual blocks + colors
+      newGallery = addTemplate({ name, category, blocks, colorA, colorB })
+    }
     setGallery(newGallery)
     setSaveModal(false)
     setSidebarTab('gallery')
-  }, [currentSeed])
+  }, [currentSeed, blocks, colorA, colorB])
 
   const handleDeleteTemplate = useCallback((id) => {
     const newGallery = removeTemplate(id)
     setGallery(newGallery)
   }, [])
 
-  const handleLoadTemplate = useCallback((seedStr) => {
-    const decoded = decodeSeed(seedStr)
-    if (!decoded) return
-    handleSeedApply(decoded)
+  const handleExportGallery = useCallback(() => {
+    exportGalleryFile(gallery)
+  }, [gallery])
+
+  const handleImportGallery = useCallback(async (file) => {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const imported = importGalleryData(data)
+      // Re-merge with shared so bundled templates are preserved
+      const shared = await fetchSharedGallery()
+      setGallery(mergeGalleries(shared, imported))
+    } catch {
+      // Ignore malformed files silently — the GalleryTab shows feedback
+    }
+  }, [])
+
+  const handleLoadTemplate = useCallback((template) => {
+    if (template.seed) {
+      // Seed-based: decode + regenerate
+      const decoded = decodeSeed(template.seed)
+      if (!decoded) return
+      handleSeedApply(decoded)
+    } else if (template.blocks) {
+      // Blocks-based: restore directly
+      const newRects = extractBlockGroups(template.blocks)
+      setState(s => ({
+        ...s,
+        seed: null,
+        blocks: template.blocks,
+        rectangles: newRects,
+        colorA: template.colorA ?? s.colorA,
+        colorB: template.colorB ?? s.colorB,
+      }))
+    }
     setSidebarTab('params')
   }, [handleSeedApply])
 
@@ -279,7 +331,9 @@ export default function AdminView({ onSwitchMode }) {
                 onLoad={handleLoadTemplate}
                 onDelete={handleDeleteTemplate}
                 onSave={() => setSaveModal(true)}
-                hasCurrent={!!currentSeed}
+                onExport={handleExportGallery}
+                onImport={handleImportGallery}
+                hasCurrent={canSave}
               />
             )}
 
@@ -310,7 +364,7 @@ export default function AdminView({ onSwitchMode }) {
               </Button>
               <Button
                 variant="secondary"
-                disabled={!currentSeed}
+                disabled={!canSave}
                 onClick={() => setSaveModal(true)}
                 className="shrink-0 gap-1.5 text-xs"
                 title="Save to Gallery"
@@ -331,7 +385,8 @@ export default function AdminView({ onSwitchMode }) {
         <SaveModal
           onSave={handleSaveToGallery}
           onClose={() => setSaveModal(false)}
-          preview={currentSeed}
+          seed={currentSeed}
+          blocks={currentSeed ? null : blocks}
           colorA={colorA}
           colorB={colorB}
         />
@@ -495,8 +550,9 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
 
 // ─── Gallery Tab ──────────────────────────────────────────────────────────────
 
-function GalleryTab({ gallery, onLoad, onDelete, onSave, hasCurrent }) {
+function GalleryTab({ gallery, onLoad, onDelete, onSave, onExport, onImport, hasCurrent }) {
   const [activeCategory, setActiveCategory] = useState('all')
+  const importRef = useRef(null)
 
   const filtered = activeCategory === 'all'
     ? gallery.templates
@@ -546,6 +602,35 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, hasCurrent }) {
         })}
       </div>
 
+      {/* Export / Import */}
+      <div className="flex gap-1.5">
+        <button
+          onClick={onExport}
+          disabled={gallery.templates.length === 0}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-[#1e2d3d] bg-[#0c1926] hover:border-[#3a4a5a] text-[10px] font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-30 transition-all"
+        >
+          <Download size={11} /> Export JSON
+        </button>
+        <label className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-[#1e2d3d] bg-[#0c1926] hover:border-[#50cfff]/50 text-[10px] font-semibold text-slate-400 hover:text-[#50cfff] transition-all cursor-pointer">
+          <Upload size={11} /> Import JSON
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) { onImport(f); e.target.value = '' }
+            }}
+          />
+        </label>
+      </div>
+
+      <p className="text-[9px] text-slate-600 leading-snug">
+        Export → place <code className="text-slate-500">gallery.json</code> in{' '}
+        <code className="text-slate-500">public/</code> → redeploy to share with all users.
+      </p>
+
       {/* Template list */}
       {filtered.length === 0 ? (
         <div className="text-center py-8 text-slate-600 text-xs">
@@ -559,7 +644,7 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, hasCurrent }) {
             <GalleryCard
               key={t.id}
               template={t}
-              onLoad={() => onLoad(t.seed)}
+              onLoad={() => onLoad(t)}
               onDelete={() => onDelete(t.id)}
             />
           ))}
@@ -575,7 +660,13 @@ function GalleryCard({ template, onLoad, onDelete }) {
   return (
     <div className="flex items-center gap-2 bg-[#0c1926] border border-[#1e2d3d] rounded-md px-2 py-2 hover:border-[#3a4a5a] group transition-all">
       <div className="shrink-0 rounded overflow-hidden">
-        <PatternPreview seed={template.seed} size={40} />
+        <PatternPreview
+          seed={template.seed}
+          blocks={template.blocks}
+          colorA={template.colorA}
+          colorB={template.colorB}
+          size={40}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-slate-200 truncate">{template.name}</p>
@@ -601,7 +692,7 @@ function GalleryCard({ template, onLoad, onDelete }) {
 
 // ─── Save Modal ───────────────────────────────────────────────────────────────
 
-function SaveModal({ onSave, onClose, preview, colorA, colorB }) {
+function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
   const [name, setName]         = useState('')
   const [category, setCategory] = useState('foundation')
 
@@ -618,7 +709,7 @@ function SaveModal({ onSave, onClose, preview, colorA, colorB }) {
         {/* Pattern preview */}
         <div className="flex justify-center">
           <div className="rounded-lg overflow-hidden border border-[#1e2d3d]">
-            <PatternPreview seed={preview} size={120} />
+            <PatternPreview seed={seed} blocks={blocks} colorA={colorA} colorB={colorB} size={120} />
           </div>
         </div>
 

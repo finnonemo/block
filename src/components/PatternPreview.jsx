@@ -5,7 +5,10 @@ import {
   buildConfigFromParams,
   createRNG,
   generatePatternRects,
+  extractBlockGroups,
 } from '@/utils/gridUtils'
+
+// ─── Data resolvers ───────────────────────────────────────────────────────────
 
 function resolvePattern(seedStr) {
   const decoded = decodeSeed(seedStr)
@@ -16,6 +19,21 @@ function resolvePattern(seedStr) {
   const rects = generatePatternRects(cfg, rng)
   return { rects, colorA, colorB }
 }
+
+function resolveBlocks(blocks, colorA, colorB) {
+  if (!blocks || blocks.length !== COLS * COLS) return null
+  return { rects: extractBlockGroups(blocks), colorA, colorB }
+}
+
+// Resolve from either a seed string OR a raw blocks array + colors.
+// Blocks-based is used for image-import / hand-painted templates.
+function resolve({ seed, blocks, colorA, colorB }) {
+  if (seed)   return resolvePattern(seed)
+  if (blocks) return resolveBlocks(blocks, colorA, colorB)
+  return null
+}
+
+// ─── SVG renderers ───────────────────────────────────────────────────────────
 
 // Normalized coordinate space — lets SVG scale via CSS without recalculating coords
 const NORM = 160
@@ -72,19 +90,23 @@ export function QuadPatternSVG({ rects, colorA, colorB, size = 240, style, class
   )
 }
 
-// Convenience wrappers that accept a seed string
-export function PatternPreview({ seed, size = 80 }) {
-  const data = useMemo(() => resolvePattern(seed), [seed])
-  if (!data) return (
-    <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
+// ─── Convenience wrappers ─────────────────────────────────────────────────────
+// Accept either a seed string OR blocks+colorA+colorB for image-derived patterns.
+
+export function PatternPreview({ seed, blocks, colorA, colorB, size = 80 }) {
+  const data = useMemo(
+    () => resolve({ seed, blocks, colorA, colorB }),
+    [seed, blocks, colorA, colorB]
   )
+  if (!data) return <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
   return <PatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} size={size} />
 }
 
-export function QuadPatternPreview({ seed, size = 160 }) {
-  const data = useMemo(() => resolvePattern(seed), [seed])
-  if (!data) return (
-    <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
+export function QuadPatternPreview({ seed, blocks, colorA, colorB, size = 160 }) {
+  const data = useMemo(
+    () => resolve({ seed, blocks, colorA, colorB }),
+    [seed, blocks, colorA, colorB]
   )
+  if (!data) return <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
   return <QuadPatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} size={size} />
 }

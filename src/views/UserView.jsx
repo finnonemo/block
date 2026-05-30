@@ -9,13 +9,14 @@ import {
   COLOR_PAIRS,
   buildConfigFromParams,
   generatePatternRects,
+  extractBlockGroups,
   syncBlocks,
   buildSVG,
   copySVGToClipboard,
   createRNG,
   decodeSeed,
 } from '@/utils/gridUtils'
-import { CATEGORIES, loadGallery } from '@/utils/gallery'
+import { CATEGORIES, loadGallery, fetchSharedGallery, mergeGalleries } from '@/utils/gallery'
 
 function makeNewSeed() {
   return (Math.random() * 0x100000000) >>> 0
@@ -153,14 +154,21 @@ function TemplatePage({ categoryId, gallery, onBack, onSelect }) {
 }
 
 function TemplateCard({ template, onSelect }) {
-  const decoded = decodeSeed(template.seed)
-  const colorA  = decoded?.colorA ?? '#00e76b'
-  const colorB  = decoded?.colorB ?? '#01172b'
-  const rects   = decoded ? (() => {
-    const rng = createRNG(decoded.seed)
-    const cfg = buildConfigFromParams(decoded.params)
-    return generatePatternRects(cfg, rng)
-  })() : []
+  // Seed-based: decode + generate rects; Blocks-based: use directly
+  const colorA = template.colorA ?? '#00e76b'
+  const colorB = template.colorB ?? '#01172b'
+
+  let rects = []
+  if (template.seed) {
+    const decoded = decodeSeed(template.seed)
+    if (decoded) {
+      const rng = createRNG(decoded.seed)
+      const cfg = buildConfigFromParams(decoded.params)
+      rects = generatePatternRects(cfg, rng)
+    }
+  } else if (template.blocks) {
+    rects = extractBlockGroups(template.blocks)
+  }
 
   return (
     <button
@@ -198,26 +206,31 @@ function TemplateCard({ template, onSelect }) {
 // ─── Page 3: Editor / Export ──────────────────────────────────────────────────
 
 function EditorPage({ template, onBack }) {
-  const decoded = decodeSeed(template.seed)
+  const decoded = template.seed ? decodeSeed(template.seed) : null
+  const isSeedBased = !!decoded
 
   const [seed, setSeed]           = useState(decoded?.seed ?? makeNewSeed())
   const [params, setParams]       = useState(decoded?.params ?? {})
-  const [colorA, setColorA]       = useState(decoded?.colorA ?? '#00e76b')
-  const [colorB, setColorB]       = useState(decoded?.colorB ?? '#01172b')
+  const [colorA, setColorA]       = useState(template.colorA ?? decoded?.colorA ?? '#00e76b')
+  const [colorB, setColorB]       = useState(template.colorB ?? decoded?.colorB ?? '#01172b')
   const [rectangles, setRects]    = useState([])
   const [blocks, setBlocks]       = useState(Array(COLS * ROWS).fill(1))
   const [copyStatus, setCopyStatus] = useState('idle')
   const [showColorPicker, setShowColorPicker] = useState(false)
 
-  // Init from decoded template
+  // Init canvas from template
   useEffect(() => {
-    if (!decoded) return
-    const s = decoded.seed
-    const p = decoded.params
-    const { rects, blocks } = generateState(p, s)
-    setRects(rects)
-    setBlocks(blocks)
-  }, [template.seed]) // eslint-disable-line
+    if (isSeedBased && decoded) {
+      const { rects, blocks } = generateState(decoded.params, decoded.seed)
+      setRects(rects)
+      setBlocks(blocks)
+    } else if (template.blocks) {
+      // Image/painted template: restore blocks directly
+      const rects = extractBlockGroups(template.blocks)
+      setBlocks(template.blocks)
+      setRects(rects)
+    }
+  }, [template.seed, template.blocks]) // eslint-disable-line
 
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
@@ -480,6 +493,13 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
 export default function UserView({ onSwitchMode }) {
   const [gallery, setGallery]         = useState(loadGallery)
   const [page, setPage]               = useState(1)
+
+  // Merge shared gallery.json with any local additions on mount
+  useEffect(() => {
+    fetchSharedGallery().then(shared => {
+      setGallery(prev => mergeGalleries(shared, prev))
+    })
+  }, [])
   const [selectedCategory, setCategory] = useState(null)
   const [selectedTemplate, setTemplate] = useState(null)
 
