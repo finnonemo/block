@@ -170,46 +170,14 @@ function makeHeights(cfg, rng) {
     const hN_1 = forcedEndH != null ? clamp(forcedEndH, 1, 14) : null;
     const blocksToGenerate = hN_1 != null ? amount - 2 : amount - 1;
 
-    const middleHeights = [];
     const userMin = cfg.midMinH || 1;
     const userMax = cfg.midMaxH || 14;
     
     for (let i = 0; i < blocksToGenerate; i++) {
       const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= userMax);
-      middleHeights.push(pool.length ? rand(pool, rng) : userMin);
+      const t = amount > 1 ? (i + 1) / (amount - 1) : 0;
+      heights.push(pool.length ? pickBiasedSize(pool, t, cfg.midCurve ?? 50, rng) : userMin);
     }
-
-    // Sort middleHeights based on midCurve
-    const curve = cfg.midCurve ?? 50;
-    const power = Math.pow(10, (curve - 50) / 50); // Maps 0->0.1, 50->1, 100->10
-    const N = middleHeights.length;
-    const sorted = [];
-    const pool = [...middleHeights];
-    let currentSum = 0;
-    const totalMidSum = pool.reduce((a, b) => a + b, 0);
-
-    for (let i = 0; i < N; i++) {
-      const targetY = totalMidSum * Math.pow((i + 1) / N, power);
-      
-      let bestIdx = 0;
-      let minDiff = Infinity;
-      // If curve is exactly 50, we introduce a slight randomness to ties or near-ties to keep it organic
-      for (let j = 0; j < pool.length; j++) {
-        const diff = Math.abs((currentSum + pool[j]) - targetY);
-        // Add tiny random noise if curve is close to 50 to avoid repetitive stairs
-        const noise = (Math.abs(curve - 50) < 5) ? (rng() * 0.1) : 0; 
-        if (diff + noise < minDiff) {
-          minDiff = diff + noise;
-          bestIdx = j;
-        }
-      }
-      
-      const picked = pool.splice(bestIdx, 1)[0];
-      sorted.push(picked);
-      currentSum += picked;
-    }
-
-    heights.push(...sorted);
 
     if (hN_1 != null) {
       heights.push(hN_1); // h_{N-1}
@@ -226,12 +194,29 @@ function makeHeights(cfg, rng) {
     const userMin = cfg.midMinH || 1;
     const userMax = cfg.midMaxH || 14;
     const pool = ALLOWED_HEIGHTS.filter(h => h >= userMin && h <= userMax);
-    return pool.length ? rand(pool, rng) : userMin;
+    const t = amount > 1 ? i / (amount - 1) : 0;
+    return pool.length ? pickBiasedSize(pool, t, cfg.midCurve ?? 50, rng) : userMin;
   });
   return h;
 }
 
-function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null, allowOverlap = false) {
+function pickBiasedSize(pool, t, curve, rng) {
+  if (!pool.length) return 1;
+  const C = (curve - 50) / 50; // -1 to 1
+  const bias = C * (2 * t - 1); // -1 to 1
+
+  let u = rng();
+  if (bias > 0) {
+    u = 1 - Math.pow(1 - u, 1 + bias * 5);
+  } else if (bias < 0) {
+    u = Math.pow(u, 1 - bias * 5);
+  }
+
+  const idx = Math.min(pool.length - 1, Math.floor(u * pool.length));
+  return pool[idx];
+}
+
+function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null, allowOverlap = false, midCurve = 50) {
   const maxW = Math.max(1, targetSpan - amount + 1);
   const allowedW = Array.from({ length: maxW }, (_, i) => i + 1);
 
@@ -248,7 +233,8 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
       const userMin = connectionTypes ? (connectionTypes.midMinW || 1) : 1;
       const userMax = connectionTypes ? (connectionTypes.midMaxW || 14) : 14;
       const pool = ALLOWED_WIDTHS.filter(w => w >= userMin && w <= userMax);
-      return pool.length ? rand(pool, rng) : userMin;
+      const t = amount > 1 ? i / (amount - 1) : 0;
+      return pool.length ? pickBiasedSize(pool, t, midCurve, rng) : userMin;
     });
     // Widths are positional — no sort
     const overlaps = [0];
