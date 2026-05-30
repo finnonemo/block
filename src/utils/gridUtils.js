@@ -78,33 +78,44 @@ export const END_HEIGHT_OPTIONS = [
 
 // Default parameters
 export const DEFAULT_PARAMS = {
-  complexity:      2,
-  startHeight:     0,
-  endHeight:       0,
-  overlapChance:   0,   // 0–10 integer (maps to 0–100%)
-  cornerChance:    0,   // 0–3 exact count
-  volatility:      5,   // 0–10 integer (maps to 0–100% curve bending, default 50%)
-  sizeScale:       5,   // 0–10 integer (maps to 0–100% block square scaling, default 50%)
-  startBlockSize:  3,   // 0–10: target height of first/smallest block (0=tiny, 10=tall)
-  endBlockSize:    8,   // 0–10: target height of last/largest block  (0=tiny, 10=tall)
+  blockMin:      3,    // Minimum number of blocks
+  blockMax:      5,    // Maximum number of blocks
+  startX:        0,    // 0–15: left edge of first block
+  startY:        10,   // 0–15: top edge of first block
+  startMinW:     2,
+  startMaxW:     4,
+  startMinH:     4,
+  startMaxH:     8,
+  endX:          16,   // 1–16: right edge of last block (bottom-right corner X)
+  endY:          6,    // 1–16: bottom edge of last block (bottom-right corner Y)
+  endMinW:       6,
+  endMaxW:       10,
+  endMinH:       4,
+  endMaxH:       8,
+  cornerChance:  0,    // 0–3 exact corner connections
+  horizontalChance: 0, // 0-3 exact horizontal connections
 };
 
 // Build generation config from the UI parameters
-export function buildConfigFromParams({ complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5, startBlockSize = 3, endBlockSize = 8 }) {
-  const meta = COMPLEXITY[complexity] ?? COMPLEXITY[2];
-  const oc   = overlapChance / 10;
-
+export function buildConfigFromParams({
+  blockMin = 3, blockMax = 5,
+  startX = 0, startY = 10,
+  startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
+  endX = 16,  endY = 6,
+  endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
+  cornerChance = 0, horizontalChance = 0,
+}) {
   return {
-    amountOpts:     meta.amountOpts,
-    emergenceVal:   ROWS - startHeight,
-    exitVal:        ROWS - endHeight,
-    overlapChance:  oc,
-    targetCorners:  cornerChance,
-    volatility:     volatility / 10,
-    widthScale:     0.5,  // fixed — param removed from UI
-    sizeScale:      sizeScale / 10,
-    startBlockSize,
-    endBlockSize,
+    blockMin,
+    blockMax,
+    startY,                            // top-edge Y of first block
+    exitVal:      endY,                // bottom-edge Y of last block
+    startX,                            // first block left-edge X
+    targetSpan:   endX - startX,       // X columns from startX to endX
+    startMinW, startMaxW, startMinH, startMaxH,
+    endMinW, endMaxW, endMinH, endMaxH,
+    targetCorners: cornerChance,
+    horizontalChance,
   };
 }
 
@@ -129,8 +140,14 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function randRange(min, max, rng) {
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  return Math.floor(rng() * (hi - lo + 1)) + lo;
+}
+
 function makeHeights(cfg, rng) {
-  const { amount, connectionTypes, sizeScale = 0 } = cfg;
+  const { amount, connectionTypes, forcedStartH, forcedEndH } = cfg;
 
   // Staircase trend (start height !== end height):
   // heights must sum to Math.abs(ev - xv) + shared rows so they tile the trend exactly.
@@ -175,44 +192,40 @@ function makeHeights(cfg, rng) {
     heights.push(subPool.length ? rand(subPool, rng) : minLastH);
 
     heights.sort((a, b) => a - b);
+    if (forcedStartH != null) heights[0]              = clamp(forcedStartH, 1, 14);
+    if (forcedEndH   != null) heights[heights.length - 1] = clamp(forcedEndH, 1, 14);
     return heights;
   }
 
-  // Non-staircase: sizeScale = mean block height, volatility = height variation range.
-  // volatility=0 → all blocks the same height (pool of 1 near meanH)
-  // volatility=1 → heights spread across the full allowed range
-  const meanH     = 1 + sizeScale * 13;   // sizeScale 0→1 maps to height 1→14
-  const volatility = cfg.volatility ?? 0.5;
-  const sorted    = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - meanH) - Math.abs(b - meanH));
-  const poolSz    = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * volatility));
-  const pool      = sorted.slice(0, poolSz);
-
-  const h = Array(amount).fill(null).map(() => rand(pool, rng));
+  // Non-staircase
+  const minBound = Math.min(forcedStartH ?? 1, forcedEndH ?? 14);
+  const maxBound = Math.max(forcedStartH ?? 1, forcedEndH ?? 14);
+  const pool = ALLOWED_HEIGHTS.filter(h => h >= minBound && h <= maxBound);
+  const finalPool = pool.length ? pool : [forcedStartH ?? 1];
+  const h = Array(amount).fill(null).map(() => rand(finalPool, rng));
   h.sort((a, b) => a - b);
+  if (forcedStartH != null) h[0]          = clamp(forcedStartH, 1, 14);
+  if (forcedEndH   != null) h[h.length - 1] = clamp(forcedEndH, 1, 14);
   return h;
 }
 
-function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, startBlockSize = 3, endBlockSize = 8, sizeScale = 0) {
-  const maxW     = Math.min(14, COLS - amount + 1);
-  const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
+function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null) {
+  const maxW     = Math.max(1, targetSpan - amount + 1);
+  const allowedW = Array.from({ length: maxW }, (_, i) => i + 1);
 
-  // Scale targets so the arithmetic series can always sum to ~COLS.
-  // Cap at min(maxW, 2×avgW) so extreme combos don't overflow the grid span.
-  const avgW       = COLS / amount;
+  const avgW       = targetSpan / amount;
   const maxTargetW = Math.min(maxW, avgW * 2);
-  const startW = 1 + (startBlockSize / 10) * (maxTargetW - 1);
-  const endW   = 1 + (endBlockSize   / 10) * (maxTargetW - 1);
+  const startW = forcedStartW != null ? forcedStartW : 3;
+  const endW   = forcedEndW   != null ? forcedEndW   : 8;
 
   for (let attempt = 0; attempt < 1000; attempt++) {
     const widths = Array(amount).fill(0).map((_, i) => {
+      if (i === 0 && forcedStartW != null) return clamp(forcedStartW, 1, targetSpan);
+      if (i === amount - 1 && forcedEndW != null) return clamp(forcedEndW, 1, targetSpan);
       const t      = amount > 1 ? i / (amount - 1) : 0.5;
       const targetW = startW + t * (endW - startW);
-      // sizeScale blends width toward height for squareness
-      const blendedW = targetW + sizeScale * (heights[i] - targetW);
-
-      const pool   = [...allowedW].sort((a, b) => Math.abs(a - blendedW) - Math.abs(b - blendedW));
-      // First and last blocks: use exact closest value (pool=1); middle: allow variation (pool=3)
-      const poolSz = (i === 0 || i === amount - 1) ? 1 : 3;
+      const pool   = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
+      const poolSz = 3;
       return rand(pool.slice(0, poolSz), rng);
     });
     // Widths are positional — no sort
@@ -224,19 +237,12 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
       if (maxOv >= minOvReq) {
         const type = connectionTypes ? connectionTypes[i] : 'vertical';
         if (type === 'horizontal') {
-          // Must have horizontal overlap
-          const effectiveOverlapArea = overlapArea === 0 ? 0.4 : overlapArea;
-          const overlapAmount = Math.ceil(effectiveOverlapArea * maxOv);
+          // Horizontal Edge Connect: They must overlap horizontally, so overlapX >= 1
+          const overlapAmount = Math.max(1, Math.ceil(rng() * maxOv));
           overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
         } else {
-          // corner or vertical
-          // If overlapArea is 0, they MUST NOT overlap horizontally
-          if (overlapArea > 0 && rng() < overlapArea) {
-            const overlapAmount = Math.ceil(overlapArea * maxOv);
-            overlaps.push(Math.max(minOvReq, Math.min(overlapAmount, maxOv)));
-          } else {
-            overlaps.push(0);
-          }
+          // Vertical Edge Connect or Corner: They must NOT overlap horizontally, so overlapX = 0
+          overlaps.push(0);
         }
       } else {
         // If widths are too small to overlap, but it's a horizontal edge connection, fail this attempt
@@ -251,7 +257,7 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
     if (overlaps.includes(-1)) continue;
 
     const span = widths.reduce((s, w, i) => s + w - overlaps[i], 0);
-    if (span !== COLS) continue;
+    if (span !== targetSpan) continue;
 
     if (attempt < 400 || strictNoDupDims) {
       const hasDup = widths.some(
@@ -264,24 +270,47 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
   }
 
   // Fallback: even split, positional (no sort)
-  const base   = Math.floor(COLS / amount);
+  const base   = Math.floor(targetSpan / amount);
   const widths = Array(amount).fill(base);
-  let diff     = COLS - widths.reduce((a, b) => a + b, 0);
-  for (let i = 0; diff > 0; i = (i + 1) % amount, diff--) widths[i]++;
+  if (forcedStartW != null) widths[0]          = clamp(forcedStartW, 1, targetSpan);
+  if (forcedEndW   != null) widths[amount - 1] = clamp(forcedEndW,   1, targetSpan);
+  
+  let diff = targetSpan - widths.reduce((a, b) => a + b, 0);
+  
+  if (amount > 2) {
+    if (diff > 0) {
+      for (let i = 1; diff > 0; i = i === amount - 2 ? 1 : i + 1, diff--) widths[i]++;
+    } else if (diff < 0) {
+      let borrowAttempt = 0;
+      for (let i = 1; diff < 0 && borrowAttempt < 1000; i = i === amount - 2 ? 1 : i + 1, borrowAttempt++) {
+        if (widths[i] > 1) { widths[i]--; diff++; }
+      }
+      // If middle blocks are completely squashed to 1, we are forced to borrow from start/end
+      while (diff < 0) {
+        if (widths[0] > 1) { widths[0]--; diff++; }
+        else if (widths[amount - 1] > 1) { widths[amount - 1]--; diff++; }
+        else break;
+      }
+    }
+  } else {
+    for (let i = 0; diff > 0; i = (i + 1) % amount, diff--) widths[i]++;
+  }
+
   return { widths, overlaps: Array(amount).fill(0) };
 }
 
 // ─── Public generation ───────────────────────────────────────────────────────
 
 function generateSinglePatternRects(cfg, rng) {
-  const amount = Math.max(3, cfg.amount ?? rand(cfg.amountOpts, rng));
+  const amount = Math.max(2, randRange(cfg.blockMin ?? 3, cfg.blockMax ?? 5, rng));
+
+  const startH = randRange(cfg.startMinH ?? 1, cfg.startMaxH ?? 14, rng);
+  const endH = randRange(cfg.endMinH ?? 1, cfg.endMaxH ?? 14, rng);
+  const startW = randRange(cfg.startMinW ?? 1, cfg.startMaxW ?? 14, rng);
+  const endW = randRange(cfg.endMinW ?? 1, cfg.endMaxW ?? 14, rng);
 
   // Hoist anchor / span variables so they're available before makeHeights
-  const emergenceVal =
-    typeof cfg.emergenceVal === 'number'
-      ? cfg.emergenceVal
-      : { bottom: ROWS, center: 8, top: 4 }[cfg.emergence ?? 'bottom'] ?? ROWS;
-  const oc          = cfg.overlapChance ?? 0;
+  const emergenceVal = clamp(cfg.startY + startH, 0, ROWS);
   const exitVal     = cfg.exitVal ?? emergenceVal;
   const isStaircase = emergenceVal !== exitVal;
   const ascending   = emergenceVal > exitVal;
@@ -289,31 +318,34 @@ function generateSinglePatternRects(cfg, rng) {
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
   const targetCorners = cfg.targetCorners ?? 0;
+  const targetHorizontals = cfg.horizontalChance ?? 0;
   const indices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
   const cornerIndices = new Set(indices.slice(0, Math.min(targetCorners, amount - 1)));
+  const horizontalIndices = new Set(indices.slice(cornerIndices.size, Math.min(targetCorners + targetHorizontals, amount - 1)));
 
   for (let i = 1; i < amount; i++) {
     if (cornerIndices.has(i)) {
       connectionTypes[i] = 'corner';
+    } else if (horizontalIndices.has(i)) {
+      connectionTypes[i] = 'horizontal';
     } else {
-      if (isStaircase) {
-        connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
-      } else {
-        connectionTypes[i] = rng() < oc ? 'horizontal' : 'vertical';
-      }
+      connectionTypes[i] = rng() < 0.5 ? 'horizontal' : 'vertical';
     }
   }
 
-  const cfgAmt = { ...cfg, amount, connectionTypes };
+  const cfgAmt = { ...cfg, amount, connectionTypes, forcedStartH: startH, forcedEndH: endH, forcedStartW: startW, forcedEndW: endW, emergenceVal, exitVal };
   const heights = makeHeights(cfgAmt, rng);
 
-  // Flat only when both entry AND exit are at the same extreme edge
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.startBlockSize, cfg.endBlockSize, cfg.sizeScale);
+  const targetSpan   = cfg.targetSpan ?? COLS;
+  const { widths, overlaps } = makeWidths(
+    heights, amount, rng, flatBaseline, connectionTypes,
+    targetSpan, startW, endW
+  );
 
   // ── Baseline Y positions — linear interpolation from startY to exitY ─────
   const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
@@ -326,7 +358,7 @@ function generateSinglePatternRects(cfg, rng) {
 
   // ── Y assignment ─────────────────────────────────────────────────────────
   const rects = [];
-  let x = 0, prevY = null, prevH = null;
+  let x = cfg.startX ?? 0, prevY = null, prevH = null;
 
   for (let i = 0; i < amount; i++) {
     if (i > 0) x += widths[i - 1] - overlaps[i];
@@ -355,79 +387,68 @@ function generateSinglePatternRects(cfg, rng) {
       // ── Block N-1 (last): anchored to exitY (End Height)
       y = exitY;
 
-    } else if (connectionTypes[i] === 'corner' || connectionTypes[i] === 'horizontal') {
-      // ── Type 2 (Corner/Horizontal Connect): touch flush horizontally, direction randomised
-      const above = prevY - h;
-      const below = prevY + prevH;
-      const okAbove = above >= 0;
-      const okBelow = below + h <= ROWS;
-      if (okAbove && okBelow) y = rng() < 0.5 ? above : below;
-      else if (okAbove)       y = above;
-      else if (okBelow)       y = below;
-      else { y = clamp(idealY, prevY - h + 1, prevY + prevH - 1); }
-
     } else {
-      // ── Middle blocks: fill the gap between block 0 and block N-1.
-      //    Three connection types per block anatomy (Figma 106:274):
-      //
-      //    🔵 BLUE  (Left/Right vertical edge): blocks share a strip at their X-boundary
-      //             → y ∈ [prevY−h+1, prevY+prevH−1]  (shared rows create the vertical strip)
-      //    🔴 RED   (Top/Bottom horizontal edge): one block's Top meets prev's Bottom (or vice-versa)
-      //             → y = prevY−h (current Bottom = prev Top)  — only a true edge when X-overlap > 0
-      //    🟡 YELLOW (Corner): corner point touch — handled separately by cornerPairs
-      //
-      //    Corridor ensures exitY is still reachable with remaining block heights.
-      const remainingH = heights.slice(i + 1).reduce((a, b) => a + b, 0);
-      const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
-      const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
-      // BLUE range: shared-row positions, intersected with corridor
-      const shareOffset = i === 1 ? 1 : 2;
-      const edgeLo = clamp(prevY - h + shareOffset, 0, ROWS - h);
-      const edgeHi = clamp(prevY + prevH - shareOffset, 0, ROWS - h);
-      const lo = Math.max(edgeLo, corridorLo);
-      const hi = Math.min(edgeHi, corridorHi);
-      const blueRange = lo <= hi ? { lo, hi } : { lo: edgeLo, hi: edgeHi };
-      // RED position: current block's Bottom touches prev block's Top (ascending)
-      const redY      = prevY - h;
-      const canRed    = oc > 0 && redY >= 0 && redY >= corridorLo && redY <= corridorHi;
-
-      const r = rng();
-      if (r < 1 / 3) {
-        // 🔴 RED (Horizontal edge): current Bottom = prev Top.
-        // With X-overlap this is a true horizontal edge strip; without overlap it degrades
-        // to a corner point — so only fire when overlapArea > 0 (oc > 0).
-        // Falls back to BLUE Sub-B when RED is not feasible.
-        y = canRed ? redY : clamp(idealY, blueRange.lo, blueRange.hi);
-
-      } else if (r < 2 / 3) {
-        // 🔵 BLUE Sub-A (Vertical edge, same top-Y):
-        // Blocks start at the same Y → their Left/Right boundary forms a vertical strip
-        // whose height = min(h, prevH). L-shaped junction when heights differ.
-        // Only apply when h ≠ prevH (equal heights → pure vertical, no horizontal step).
-        if (h !== prevH && prevY >= blueRange.lo && prevY <= blueRange.hi) {
-          y = prevY;
-          verticalEdge = true; // intentional same-Y — skip the no-same-Y nudge
+      const type = connectionTypes[i];
+      if (type === 'horizontal' || type === 'corner') {
+        // ── Horizontal / Corner Connect: overlapY MUST BE 0 (touch flush on top or bottom)
+        const above = prevY - h;
+        const below = prevY + prevH;
+        const okAbove = above >= 0;
+        const okBelow = below + h <= ROWS;
+        
+        // Find which direction gets us closer to exitY
+        const distAbove = Math.abs(above - exitY);
+        const distBelow = Math.abs(below - exitY);
+        
+        if (okAbove && okBelow) {
+          // 80% chance to step towards the goal, 20% chance to step away (for randomness)
+          const preferAbove = distAbove < distBelow;
+          if (preferAbove) {
+            y = rng() < 0.8 ? above : below;
+          } else {
+            y = rng() < 0.8 ? below : above;
+          }
+        } else if (okAbove) {
+          y = above;
+        } else if (okBelow) {
+          y = below;
         } else {
-          y = clamp(idealY, blueRange.lo, blueRange.hi);
+          // Dead end, fallback to above and let grid clamping handle it
+          y = above; 
         }
 
       } else {
-        // 🔵 BLUE Sub-B (Vertical edge, offset Y):
-        // y-offset creates an L-shaped junction with both a vertical strip (shared rows)
-        // and a horizontal ledge (height difference at the step).
-        y = clamp(idealY, blueRange.lo, blueRange.hi);
+        // ── Vertical Edge Connect: overlapY MUST BE >= 1
+        // Blocks share a vertical edge strip (x-overlap = 0)
+        const edgeLo = clamp(prevY - h + 1, 0, ROWS - h);
+        const edgeHi = clamp(prevY + prevH - 1, 0, ROWS - h);
+        
+        // Corridor ensures exitY is still reachable with remaining block heights
+        const remainingH = heights.slice(i + 1).reduce((a, b) => a + b, 0);
+        const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
+        const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
+        
+        const lo = Math.max(edgeLo, corridorLo);
+        const hi = Math.min(edgeHi, corridorHi);
+        
+        if (lo <= hi) {
+          y = randRange(lo, hi, rng);
+        } else {
+          y = randRange(edgeLo, edgeHi, rng);
+        }
       }
     }
 
     y = clamp(y, 0, ROWS - h); // final grid-bounds safety
 
-    // Enforce no-same-Y — skip when intentional (vertical edge, isStaircase, last block, flatBaseline)
+    // Enforce no-same-Y — skip when intentional (vertical edge, last block)
     const isLastBlock = (i === amount - 1);
-    if (!flatBaseline && !isLastBlock && !isStaircase && !verticalEdge && prevY !== null && y === prevY) {
+    const type = connectionTypes[i];
+    if (!isLastBlock && type === 'vertical' && prevY !== null && y === prevY) {
       const down = y + 1;
       const up   = y - 1;
       if (down <= ROWS - h && down < prevY + prevH) y = down;
-      else if (up >= 0 && up + h > prevY)           y = up;
+      else if (up >= 0 && up > prevY - h)           y = up;
     }
 
     rects.push({ x, y, w, h });
@@ -440,7 +461,7 @@ function generateSinglePatternRects(cfg, rng) {
 
 function isValidPattern(rects, cfg) {
   const amount = rects.length;
-  if (amount < 3) return false;
+  if (amount < 2) return false;
 
   const emergenceVal =
     typeof cfg.emergenceVal === 'number'
@@ -467,15 +488,14 @@ function isValidPattern(rects, cfg) {
     const overlapY = Math.max(0, Math.min(rects[i - 1].y + rects[i - 1].h, rects[i].y + rects[i].h) - Math.max(rects[i - 1].y, rects[i].y));
     const isCornerMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX === 0);
     
-    const minOverlapReq = i === 1 ? 1 : 2;
-    const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= minOverlapReq);
+    const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= 1);
 
     if (isCornerMeet) {
       actualCorners++;
     }
 
-    // Adjacent blocks must connect (either overlap >= minOverlapReq, corner-touch, or horizontal edge >= minOverlapReq)
-    const isConnected = isCornerMeet || isHorizontalEdgeMeet || (overlapY >= minOverlapReq);
+    // Adjacent blocks must connect (either overlap >= 1, corner-touch, or horizontal edge >= 1)
+    const isConnected = isCornerMeet || isHorizontalEdgeMeet || (overlapY >= 1);
     if (!isConnected) {
       return false;
     }
@@ -485,19 +505,7 @@ function isValidPattern(rects, cfg) {
   const targetCorners = cfg.targetCorners ?? 0;
   if (actualCorners !== targetCorners) return false;
 
-  // 3.5 Enforce zero 2D intersection area if overlap setting is 0
-  const overlapChance = cfg.overlapChance ?? 0;
-  if (overlapChance === 0) {
-    for (let i = 1; i < amount; i++) {
-      const rA = rects[i - 1];
-      const rB = rects[i];
-      const overlapX = Math.max(0, Math.min(rA.x + rA.w, rB.x + rB.w) - Math.max(rA.x, rB.x));
-      const overlapY = Math.max(0, Math.min(rA.y + rA.h, rB.y + rB.h) - Math.max(rA.y, rB.y));
-      if (overlapX * overlapY > 0) {
-        return false;
-      }
-    }
-  }
+
 
   // 4. Duplicate dimensions check for adjacent edge-connected blocks
   for (let i = 1; i < amount; i++) {
@@ -695,19 +703,14 @@ export function extractBlockGroups(blocks) {
 // ─── Seed encode / decode ────────────────────────────────────────────────────
 // V1 format: 15 bytes → 21 B62 chars (old seeds, no block sizes)
 // V2 format: 16 bytes → 22 B62 chars (adds startBlockSize + endBlockSize in b[15])
-//   [0-3]  uint32 random seed  (big-endian)
-//   [4]    complexity           (1–4)
-//   [5]    heights byte: low nibble = startHeight/4, high nibble = endHeight/4
-//   [6]    overlapChance        (0–10)
-//   [7]    bits 0-1=cornerChance, bits 2-3=symmetryCode, bits 4-7=sizeScale
-//   [8]    bits 0-3=volatility, bits 4-7=widthScale+1
-//   [9-11] colorA RGB
-//   [12-14] colorB RGB
-//   [15]   V2 only: bits 0-3=startBlockSize (0-10), bits 4-7=endBlockSize (0-10)
+// V3 format: 18 bytes → 25 B62 chars (8 dimension bounds)
+// V4 format: 19 bytes → 26 B62 chars (adds startX, startY, endX, endY explicit coords)
 
 const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const B62_LEN_V1 = 21; // 15 bytes
 const B62_LEN_V2 = 22; // 16 bytes — ceil(128 bits / log2(62))
+const B62_LEN_V3 = 25; // 18 bytes
+const B62_LEN_V4 = 26; // 19 bytes
 
 function bytesToB62(bytes, targetLen) {
   let n = 0n;
@@ -735,22 +738,32 @@ function bytesToHex(r, g, b) {
 }
 
 export function encodeSeed(seed, params, colorA, colorB) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, volatility = 5, sizeScale = 5, startBlockSize = 3, endBlockSize = 8 } = params;
+  const {
+    blockMin = 3, blockMax = 5, overlapChance, cornerChance, horizontalChance = 0,
+    startX = 0, startY = 10, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
+    endX = 16, endY = 6, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
+  } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
-  const heightsByte  = (startHeight / 4) | ((endHeight / 4) << 4);
-  // bits 2-3 (symmetry) always 0 — param removed
-  const cornerChanceByte = (cornerChance & 0x3) | ((sizeScale & 0xF) << 4);
-  // high nibble (widthScale) always 0 — param removed
-  const volatilityByte   = (volatility & 0xF);
-  const blockSizeByte    = (startBlockSize & 0xF) | ((endBlockSize & 0xF) << 4);
+
+  const blockCountByte = (blockMin & 0xF) | ((blockMax & 0xF) << 4);
+  const startCoordByte = (startX & 0xF) | ((startY & 0xF) << 4);
+  const endCoordByte   = ((endX - 1) & 0xF) | (((endY - 1) & 0xF) << 4);
+  
+  const connectionByte = (cornerChance & 0x3) | ((horizontalChance & 0x3) << 2);
+
+  const startWByte = (startMinW & 0xF) | ((startMaxW & 0xF) << 4);
+  const startHByte = (startMinH & 0xF) | ((startMaxH & 0xF) << 4);
+  const endWByte   = (endMinW & 0xF) | ((endMaxW & 0xF) << 4);
+  const endHByte   = (endMinH & 0xF) | ((endMaxH & 0xF) << 4);
+
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
-    complexity, heightsByte, overlapChance, cornerChanceByte, volatilityByte,
+    blockCountByte, startCoordByte, overlapChance, connectionByte,
+    startWByte, startHByte, endWByte, endHByte, endCoordByte,
     ar, ag, ab, br, bg, bb,
-    blockSizeByte,
   ]);
-  return bytesToB62(buf, B62_LEN_V2);
+  return bytesToB62(buf, B62_LEN_V4);
 }
 
 export function decodeSeed(str) {
@@ -758,35 +771,96 @@ export function decodeSeed(str) {
     const s = str.trim();
     const isV1 = s.length === B62_LEN_V1;
     const isV2 = s.length === B62_LEN_V2;
-    if ((!isV1 && !isV2) || ![...s].every(c => B62.includes(c))) return null;
+    const isV3 = s.length === B62_LEN_V3;
+    const isV4 = s.length === B62_LEN_V4;
+    if ((!isV1 && !isV2 && !isV3 && !isV4) || ![...s].every(c => B62.includes(c))) return null;
 
-    const byteCount = isV2 ? 16 : 15;
+    const byteCount = isV4 ? 19 : isV3 ? 18 : isV2 ? 16 : 15;
     const b         = b62ToBytes(s, byteCount);
     const seed      = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
 
-    const startHeight = (b[5] & 0xF) * 4;
-    const endHeight   = ((b[5] >> 4) & 0xF) * 4;
+    let params;
+    let colorA, colorB;
 
-    const params = {
-      complexity:     b[4],
-      startHeight,
-      endHeight,
-      overlapChance:  b[6],
-      cornerChance:   b[7] & 0x3,
-      sizeScale:      (b[7] >> 4) & 0xF,
-      volatility:     b[8] & 0xF,
-      startBlockSize: isV2 ? (b[15] & 0xF)        : 3,
-      endBlockSize:   isV2 ? ((b[15] >> 4) & 0xF) : 8,
-    };
+    if (isV4) {
+      params = {
+        blockMin:       b[4] & 0xF,
+        blockMax:       (b[4] >> 4) & 0xF,
+        startX:         b[5] & 0xF,
+        startY:         (b[5] >> 4) & 0xF,
+        overlapChance:  b[6],
+        cornerChance:   b[7] & 0x3,
+        horizontalChance: (b[7] >> 2) & 0x3,
+        startMinW:      b[8] & 0xF,
+        startMaxW:      (b[8] >> 4) & 0xF,
+        startMinH:      b[9] & 0xF,
+        startMaxH:      (b[9] >> 4) & 0xF,
+        endMinW:        b[10] & 0xF,
+        endMaxW:        (b[10] >> 4) & 0xF,
+        endMinH:        b[11] & 0xF,
+        endMaxH:        (b[11] >> 4) & 0xF,
+        endX:           (b[12] & 0xF) + 1,
+        endY:           ((b[12] >> 4) & 0xF) + 1,
+      };
+      colorA = bytesToHex(b[13], b[14], b[15]);
+      colorB = bytesToHex(b[16], b[17], b[18]);
+    } else {
+      // V1, V2, V3 decode fallback (legacy)
+      const oldStartHeight = (b[5] & 0xF) * 4;
+      const oldEndHeight   = ((b[5] >> 4) & 0xF) * 4;
+      const legacyComplexity = b[4];
+      const fallbackBlockMin = legacyComplexity === 1 ? 3 : legacyComplexity === 2 ? 4 : legacyComplexity === 3 ? 6 : 7;
+      const fallbackBlockMax = legacyComplexity === 1 ? 4 : legacyComplexity === 2 ? 5 : legacyComplexity === 3 ? 6 : 8;
 
-    if (params.complexity < 1 || params.complexity > 4)       return null;
-    if (startHeight > 16 || startHeight % 4 !== 0)            return null;
-    if (endHeight   > 16 || endHeight   % 4 !== 0)            return null;
+      if (isV3) {
+        params = {
+          blockMin:       fallbackBlockMin,
+          blockMax:       fallbackBlockMax,
+          startX:         0,
+          startY:         oldStartHeight || 10,
+          overlapChance:  b[6],
+          cornerChance:   b[7] & 0x3,
+          horizontalChance: 0,
+          startMinW:      b[8] & 0xF,
+          startMaxW:      (b[8] >> 4) & 0xF,
+          startMinH:      b[9] & 0xF,
+          startMaxH:      (b[9] >> 4) & 0xF,
+          endMinW:        b[10] & 0xF,
+          endMaxW:        (b[10] >> 4) & 0xF,
+          endMinH:        b[11] & 0xF,
+          endMaxH:        (b[11] >> 4) & 0xF,
+          endX:           16,
+          endY:           oldEndHeight || 6,
+        };
+        colorA = bytesToHex(b[12], b[13], b[14]);
+        colorB = bytesToHex(b[15], b[16], b[17]);
+      } else {
+        params = {
+          blockMin:       fallbackBlockMin,
+          blockMax:       fallbackBlockMax,
+          startX:         0,
+          startY:         oldStartHeight || 10,
+          overlapChance:  b[6],
+          cornerChance:   b[7] & 0x3,
+          horizontalChance: 0,
+          startMinW:      2,
+          startMaxW:      4,
+          startMinH:      4,
+          startMaxH:      8,
+          endMinW:        6,
+          endMaxW:        10,
+          endMinH:        4,
+          endMaxH:        8,
+          endX:           16,
+          endY:           oldEndHeight || 6,
+        };
+        colorA = bytesToHex(b[9],  b[10], b[11]);
+        colorB = bytesToHex(b[12], b[13], b[14]);
+      }
+    }
+
     if (params.overlapChance > 10 || params.cornerChance > 3) return null;
-    if (params.volatility > 10 || params.sizeScale > 10)      return null;
 
-    const colorA = bytesToHex(b[9],  b[10], b[11]);
-    const colorB = bytesToHex(b[12], b[13], b[14]);
     return { seed, params, colorA, colorB };
   } catch {
     return null;

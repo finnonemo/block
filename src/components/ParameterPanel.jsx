@@ -149,7 +149,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
-  const { complexity, startHeight, endHeight = 0, overlapChance, cornerChance, sizeScale, startBlockSize = 3, endBlockSize = 8 } = params
+  const { complexity, overlapChance, cornerChance } = params
 
   function set(key, val) {
     onParamsChange({ ...params, [key]: val })
@@ -165,47 +165,6 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
   return (
     <div className="space-y-5">
 
-      {/* ── Complexity ─────────────────────────────────────────────── */}
-      <ParamRow
-        label="Complexity"
-        hint={`${COMPLEXITY[complexity].label} · ${COMPLEXITY[complexity].description}`}
-      >
-        <SegGroup
-          cols={4}
-          options={Object.entries(COMPLEXITY).map(([v, m]) => ({
-            value: Number(v),
-            label: m.label,
-            sub: m.description,
-          }))}
-          value={complexity}
-          onChange={v => set('complexity', v)}
-        />
-      </ParamRow>
-
-      {/* ── Start Height ───────────────────────────────────────────── */}
-      <ParamRow
-        label="Start Height"
-        hint="Y-axis entry point for the first block"
-      >
-        <SegGroup
-          options={START_HEIGHT_OPTIONS.map(o => ({ value: o.value, label: o.label, sub: o.sub }))}
-          value={startHeight}
-          onChange={v => set('startHeight', v)}
-        />
-      </ParamRow>
-
-      {/* ── End Height ─────────────────────────────────────────────── */}
-      <ParamRow
-        label="End Height"
-        hint="Y-axis exit point for the last block"
-      >
-        <SegGroup
-          options={END_HEIGHT_OPTIONS.map(o => ({ value: o.value, label: o.label, sub: o.sub }))}
-          value={endHeight}
-          onChange={v => set('endHeight', v)}
-        />
-      </ParamRow>
-
       {/* ── Overlap Area ───────────────────────────────────────────── */}
       <ParamRow
         label="Overlap Area"
@@ -217,6 +176,30 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
           max={10}
           onChange={v => set('overlapChance', v)}
           formatLabel={v => `${v * 10}%`}
+        />
+      </ParamRow>
+
+      {/* ── Block Amount ────────────────────────────────────────────── */}
+      <ParamRow
+        label="Min Blocks"
+        hint="Minimum number of blocks to generate"
+      >
+        <ParamSlider
+          value={params.blockMin ?? 3}
+          min={2}
+          max={15}
+          onChange={v => set('blockMin', v)}
+        />
+      </ParamRow>
+      <ParamRow
+        label="Max Blocks"
+        hint="Maximum number of blocks to generate"
+      >
+        <ParamSlider
+          value={params.blockMax ?? 5}
+          min={2}
+          max={15}
+          onChange={v => set('blockMax', v)}
         />
       </ParamRow>
 
@@ -237,61 +220,68 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
-      {/* ── Trend Volatility ───────────────────────────────────────── */}
+      {/* ── Horizontal Edge Chance ─────────────────────────────────── */}
       <ParamRow
-        label="Trend Volatility"
-        hint="Low = uniform block heights · High = varied heights"
+        label="Horizontal Edge Connect"
+        hint="Exact number of horizontal edge-to-edge connections"
       >
-        <ParamSlider
-          value={params.volatility ?? 5}
-          min={0}
-          max={10}
-          onChange={v => set('volatility', v)}
-          formatLabel={v => `${v * 10}%`}
+        <SegGroup
+          options={[
+            { value: 0, label: '0', sub: 'None' },
+            { value: 1, label: '1', sub: '' },
+            { value: 2, label: '2', sub: '' },
+            { value: 3, label: '3', sub: 'Max' },
+          ]}
+          value={params.horizontalChance ?? 0}
+          onChange={v => set('horizontalChance', v)}
         />
       </ParamRow>
 
-      {/* ── Block Scale ─────────────────────────────────────────────── */}
-      <ParamRow
-        label="Block Scale"
-        hint="Mean block height — Low = small blocks · High = tall blocks"
-      >
-        <ParamSlider
-          value={params.sizeScale ?? 5}
-          min={0}
-          max={10}
-          onChange={v => set('sizeScale', v)}
-          formatLabel={v => `${v * 10}%`}
-        />
-      </ParamRow>
+      {/* ── Start Block ────────────────────────────────────────────────── */}
+      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
+        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">Start Block</h4>
+        <ParamRow label="Start X" hint="X-coordinate for the Top-Left corner">
+          <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
+        </ParamRow>
+        <ParamRow label="Start Y" hint="Y-coordinate for the Top-Left corner">
+          <ParamSlider value={params.startY ?? 10} min={0} max={15} onChange={v => set('startY', v)} />
+        </ParamRow>
+        <ParamRow label="Min Width" hint="Minimum width of the first block">
+          <ParamSlider value={params.startMinW ?? 2} min={1} max={14} onChange={v => set('startMinW', v)} />
+        </ParamRow>
+        <ParamRow label="Max Width" hint="Maximum width of the first block">
+          <ParamSlider value={params.startMaxW ?? 4} min={1} max={14} onChange={v => set('startMaxW', v)} />
+        </ParamRow>
+        <ParamRow label="Min Height" hint="Minimum height of the first block">
+          <ParamSlider value={params.startMinH ?? 4} min={1} max={14} onChange={v => set('startMinH', v)} />
+        </ParamRow>
+        <ParamRow label="Max Height" hint="Maximum height of the first block">
+          <ParamSlider value={params.startMaxH ?? 8} min={1} max={14} onChange={v => set('startMaxH', v)} />
+        </ParamRow>
+      </div>
 
-      {/* ── Start Block Size ────────────────────────────────────────── */}
-      <ParamRow
-        label="Start Block Size"
-        hint="Exact width of the first (leftmost) block"
-      >
-        <ParamSlider
-          value={startBlockSize}
-          min={0}
-          max={10}
-          onChange={v => set('startBlockSize', v)}
-          formatLabel={v => `${v * 10}%`}
-        />
-      </ParamRow>
-
-      {/* ── End Block Size ──────────────────────────────────────────── */}
-      <ParamRow
-        label="End Block Size"
-        hint="Exact width of the last (rightmost) block"
-      >
-        <ParamSlider
-          value={endBlockSize}
-          min={0}
-          max={10}
-          onChange={v => set('endBlockSize', v)}
-          formatLabel={v => `${v * 10}%`}
-        />
-      </ParamRow>
+      {/* ── End Block ──────────────────────────────────────────────────── */}
+      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
+        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">End Block</h4>
+        <ParamRow label="End X" hint="X-coordinate for the Bottom-Right corner">
+          <ParamSlider value={params.endX ?? 16} min={1} max={16} onChange={v => set('endX', v)} />
+        </ParamRow>
+        <ParamRow label="End Y" hint="Y-coordinate for the Bottom-Right corner">
+          <ParamSlider value={params.endY ?? 6} min={1} max={16} onChange={v => set('endY', v)} />
+        </ParamRow>
+        <ParamRow label="Min Width" hint="Minimum width of the last block">
+          <ParamSlider value={params.endMinW ?? 6} min={1} max={14} onChange={v => set('endMinW', v)} />
+        </ParamRow>
+        <ParamRow label="Max Width" hint="Maximum width of the last block">
+          <ParamSlider value={params.endMaxW ?? 10} min={1} max={14} onChange={v => set('endMaxW', v)} />
+        </ParamRow>
+        <ParamRow label="Min Height" hint="Minimum height of the last block">
+          <ParamSlider value={params.endMinH ?? 4} min={1} max={14} onChange={v => set('endMinH', v)} />
+        </ParamRow>
+        <ParamRow label="Max Height" hint="Maximum height of the last block">
+          <ParamSlider value={params.endMaxH ?? 8} min={1} max={14} onChange={v => set('endMaxH', v)} />
+        </ParamRow>
+      </div>
 
       {/* ── Color Palette ──────────────────────────────────────────── */}
       <ParamRow label="Color Pairs" hint="Preset brand pairs">

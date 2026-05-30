@@ -527,11 +527,12 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
         <div className="mt-1.5 bg-[#0c1926] border border-emerald-500/30 rounded px-2 py-1.5 space-y-1">
           <p className="text-[9px] font-semibold text-emerald-400 uppercase tracking-widest">Valid seed</p>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
-            <span>Complexity <span className="text-slate-200">{preview.params.complexity}</span></span>
-            <span>Start <span className="text-slate-200">{preview.params.startHeight}</span></span>
-            <span>Overlap <span className="text-slate-200">{preview.params.overlapChance * 10}%</span></span>
+            <span>Blocks <span className="text-slate-200">{preview.params.blockMin}-{preview.params.blockMax}</span></span>
+            <span>Start <span className="text-slate-200">X:{preview.params.startX} Y:{preview.params.startY}</span></span>
             <span>Corner <span className="text-slate-200">{preview.params.cornerChance}</span></span>
-            <span>Block Size <span className="text-slate-200">{preview.params.startBlockSize}→{preview.params.endBlockSize}</span></span>
+            <span>Horizontal <span className="text-slate-200">{preview.params.horizontalChance}</span></span>
+            <span>Start Bounds <span className="text-slate-200">W:{preview.params.startMinW}-{preview.params.startMaxW} H:{preview.params.startMinH}-{preview.params.startMaxH}</span></span>
+            <span>End Bounds <span className="text-slate-200">W:{preview.params.endMinW}-{preview.params.endMaxW} H:{preview.params.endMinH}-{preview.params.endMaxH}</span></span>
           </div>
           <div className="flex items-center gap-2 text-[9px] text-slate-400">
             <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: preview.colorA }} />
