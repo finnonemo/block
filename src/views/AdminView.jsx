@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users } from 'lucide-react'
+import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PatternCanvas } from '@/components/PatternCanvas'
 import { ParameterPanel } from '@/components/ParameterPanel'
 import { PatternPreview } from '@/components/PatternPreview'
+import { ImageImport } from '@/components/ImageImport'
 import {
   COLS, ROWS,
   DEFAULT_PARAMS,
@@ -98,6 +99,18 @@ export default function AdminView({ onSwitchMode }) {
     setState(s => ({ ...s, blocks: Array(COLS * ROWS).fill(1), rectangles: [] }))
   }, [])
 
+  const handleImageApply = useCallback(({ blocks, colorA: newA, colorB: newB }) => {
+    const newRects = extractBlockGroups(blocks)
+    setState(s => ({
+      ...s,
+      blocks,
+      rectangles: newRects,
+      ...(newA ? { colorA: newA } : {}),
+      ...(newB ? { colorB: newB } : {}),
+    }))
+    setSidebarTab('params')
+  }, [])
+
   const handleCopy = useCallback(async () => {
     if (rectangles.length === 0) return
     try {
@@ -176,6 +189,7 @@ export default function AdminView({ onSwitchMode }) {
             {[
               { id: 'params',  label: 'Parameters', Icon: Layers },
               { id: 'gallery', label: 'Gallery',    Icon: BookOpen },
+              { id: 'image',   label: 'Image',      Icon: LayoutGrid },
             ].map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -267,6 +281,10 @@ export default function AdminView({ onSwitchMode }) {
                 onSave={() => setSaveModal(true)}
                 hasCurrent={!!currentSeed}
               />
+            )}
+
+            {sidebarTab === 'image' && (
+              <ImageImport onApply={handleImageApply} />
             )}
           </div>
 
