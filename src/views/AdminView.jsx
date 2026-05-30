@@ -530,7 +530,6 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
             <span>Blocks <span className="text-slate-200">{preview.params.blockMin}-{preview.params.blockMax}</span></span>
             <span>Start <span className="text-slate-200">X:{preview.params.startX} Y:{preview.params.startY}</span></span>
             <span>Overlap <span className="text-slate-200">{preview.params.overlapChance === 1 ? 'On' : 'Off'}</span></span>
-            <span>Corner <span className="text-slate-200">{preview.params.cornerChance}</span></span>
             <span>Start Bounds <span className="text-slate-200">W:{preview.params.startMinW}-{preview.params.startMaxW} H:{preview.params.startMinH}-{preview.params.startMaxH}</span></span>
             <span>End Bounds <span className="text-slate-200">W:{preview.params.endMinW}-{preview.params.endMaxW} H:{preview.params.endMinH}-{preview.params.endMaxH}</span></span>
           </div>

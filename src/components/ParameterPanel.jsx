@@ -210,33 +210,18 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         />
       </ParamRow>
 
-      {/* ── Corner Chance ──────────────────────────────────────────── */}
-      <ParamRow
-        label="Corner Chance"
-        hint="Exact number of corner-to-corner meets"
-      >
-        <SegGroup
-          options={[
-            { value: 0, label: '0', sub: 'None' },
-            { value: 1, label: '1', sub: '' },
-            { value: 2, label: '2', sub: '' },
-            { value: 3, label: '3', sub: 'Max' },
-          ]}
-          value={cornerChance}
-          onChange={v => set('cornerChance', v)}
-        />
-      </ParamRow>
+
 
 
 
       {/* ── Start Block ────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
         <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">Start Block</h4>
-        <ParamRow label="Start X" hint="X-coordinate for the Top-Left corner">
+        <ParamRow label="Start X" hint="X-coordinate for the Bottom-Left corner">
           <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
         </ParamRow>
-        <ParamRow label="Start Y" hint="Y-coordinate for the Top-Left corner">
-          <ParamSlider value={params.startY ?? 10} min={0} max={15} onChange={v => set('startY', v)} />
+        <ParamRow label="Start Y" hint="Y-coordinate for the Bottom-Left corner">
+          <ParamSlider value={params.startY ?? 15} min={0} max={15} onChange={v => set('startY', v)} />
         </ParamRow>
         <ParamRow label="Min Width" hint="Minimum width of the first block">
           <ParamSlider value={params.startMinW ?? 2} min={1} max={14} onChange={v => set('startMinW', v)} />
@@ -255,11 +240,11 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── End Block ──────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
         <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">End Block</h4>
-        <ParamRow label="End X" hint="X-coordinate for the Bottom-Right corner">
-          <ParamSlider value={params.endX ?? 16} min={1} max={16} onChange={v => set('endX', v)} />
+        <ParamRow label="End X" hint="X-coordinate for the Top-Right corner">
+          <ParamSlider value={params.endX ?? 15} min={0} max={15} onChange={v => set('endX', v)} />
         </ParamRow>
-        <ParamRow label="End Y" hint="Y-coordinate for the Bottom-Right corner">
-          <ParamSlider value={params.endY ?? 6} min={1} max={16} onChange={v => set('endY', v)} />
+        <ParamRow label="End Y" hint="Y-coordinate for the Top-Right corner">
+          <ParamSlider value={params.endY ?? 5} min={0} max={15} onChange={v => set('endY', v)} />
         </ParamRow>
         <ParamRow label="Min Width" hint="Minimum width of the last block">
           <ParamSlider value={params.endMinW ?? 6} min={1} max={14} onChange={v => set('endMinW', v)} />

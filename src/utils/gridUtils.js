@@ -2,120 +2,118 @@ export const COLS = 16;
 export const ROWS = 16;
 
 const ALLOWED_HEIGHTS = [1, 2, 3, 4, 6, 8, 10, 12, 14];
-const ALLOWED_WIDTHS  = [1, 2, 3, 4, 6, 8, 10, 12, 14];
+const ALLOWED_WIDTHS = [1, 2, 3, 4, 6, 8, 10, 12, 14];
 
 export const BRAND_PALETTE = {
-  Navy:       ['#01172b', '#415160', '#808b95', '#c0c5ca'],
+  Navy: ['#01172b', '#415160', '#808b95', '#c0c5ca'],
   'Lt. Grey': ['#a6bfcc', '#bccfd9', '#d3dfe6', '#e9eff2'],
-  Yellow:     ['#f2f93c', '#f5fb6d', '#f9fc9e', '#fcfece'],
-  White:      ['#ffffff'],
-  Green:      ['#00e76b', '#40ed90', '#80f3b5', '#bff9da'],
-  Blue:       ['#50cfff', '#7cdbff', '#a8e7ff', '#d3f3ff'],
-  Purple:     ['#aa46c3', '#bf74d2', '#d5a3e1', '#ead1f0'],
-  Red:        ['#f73232', '#f96565', '#fb9999', '#fdcccc'],
-  Orange:     ['#f26414', '#f58b4f', '#f9b28a', '#fcd8c4'],
+  Yellow: ['#f2f93c', '#f5fb6d', '#f9fc9e', '#fcfece'],
+  White: ['#ffffff'],
+  Green: ['#00e76b', '#40ed90', '#80f3b5', '#bff9da'],
+  Blue: ['#50cfff', '#7cdbff', '#a8e7ff', '#d3f3ff'],
+  Purple: ['#aa46c3', '#bf74d2', '#d5a3e1', '#ead1f0'],
+  Red: ['#f73232', '#f96565', '#fb9999', '#fdcccc'],
+  Orange: ['#f26414', '#f58b4f', '#f9b28a', '#fcd8c4'],
 };
 
 // Predefined brand color palettes (surface = Color A, background = Color B)
 export const PALETTES = [
   { id: 'foundation', label: 'Foundation', surface: '#00e76b', background: '#01172b' },
-  { id: 'haven',      label: 'Haven',      surface: '#50cfff', background: '#01172b' },
-  { id: 'equities',  label: 'Equities',   surface: '#f26414', background: '#f2f93c' },
-  { id: 'exotic',    label: 'Exotic',     surface: '#aa46c3', background: '#f73232' },
-  { id: 'clean',     label: 'Clean',      surface: '#00e76b', background: '#ffffff' },
+  { id: 'haven', label: 'Haven', surface: '#50cfff', background: '#01172b' },
+  { id: 'equities', label: 'Equities', surface: '#f26414', background: '#f2f93c' },
+  { id: 'exotic', label: 'Exotic', surface: '#aa46c3', background: '#f73232' },
+  { id: 'clean', label: 'Clean', surface: '#00e76b', background: '#ffffff' },
 ];
 
 // Two-color preset pairs organized by brand family
 // label format: "{Family} {surfaceShade}/{bgShade}" where 100=darkest shade, 25=lightest
 export const COLOR_PAIRS = [
   // Green
-  { id: 'grn-nav',    group: 'Green',  label: 'Green / Navy',    surface: '#00e76b', background: '#01172b' },
-  { id: 'grn-100-25', group: 'Green',  label: 'Green 100/25',    surface: '#00e76b', background: '#bff9da' },
-  { id: 'grn-wht',    group: 'Green',  label: 'Green / White',   surface: '#00e76b', background: '#ffffff' },
+  { id: 'grn-nav', group: 'Green', label: 'Green / Navy', surface: '#00e76b', background: '#01172b' },
+  { id: 'grn-100-25', group: 'Green', label: 'Green 100/25', surface: '#00e76b', background: '#bff9da' },
+  { id: 'grn-wht', group: 'Green', label: 'Green / White', surface: '#00e76b', background: '#ffffff' },
   // Blue
-  { id: 'blu-nav',    group: 'Blue',   label: 'Blue / Navy',     surface: '#50cfff', background: '#01172b' },
-  { id: 'blu-100-25', group: 'Blue',   label: 'Blue 100/25',     surface: '#50cfff', background: '#d3f3ff' },
+  { id: 'blu-nav', group: 'Blue', label: 'Blue / Navy', surface: '#50cfff', background: '#01172b' },
+  { id: 'blu-100-25', group: 'Blue', label: 'Blue 100/25', surface: '#50cfff', background: '#d3f3ff' },
   // Orange
-  { id: 'org-100-25', group: 'Orange', label: 'Orange 100/25',   surface: '#f26414', background: '#fcd8c4' },
-  { id: 'org-75-25',  group: 'Orange', label: 'Orange 75/25',    surface: '#f58b4f', background: '#fcd8c4' },
-  { id: 'org-100-50', group: 'Orange', label: 'Orange 100/50',   surface: '#f26414', background: '#f9b28a' },
-  { id: 'org-yel',    group: 'Orange', label: 'Orange / Yellow', surface: '#f26414', background: '#f2f93c' },
+  { id: 'org-100-25', group: 'Orange', label: 'Orange 100/25', surface: '#f26414', background: '#fcd8c4' },
+  { id: 'org-75-25', group: 'Orange', label: 'Orange 75/25', surface: '#f58b4f', background: '#fcd8c4' },
+  { id: 'org-100-50', group: 'Orange', label: 'Orange 100/50', surface: '#f26414', background: '#f9b28a' },
+  { id: 'org-yel', group: 'Orange', label: 'Orange / Yellow', surface: '#f26414', background: '#f2f93c' },
   // Yellow
-  { id: 'yel-nav',    group: 'Yellow', label: 'Yellow / Navy',   surface: '#f2f93c', background: '#01172b' },
-  { id: 'yel-100-25', group: 'Yellow', label: 'Yellow 100/25',   surface: '#f2f93c', background: '#fcfece' },
+  { id: 'yel-nav', group: 'Yellow', label: 'Yellow / Navy', surface: '#f2f93c', background: '#01172b' },
+  { id: 'yel-100-25', group: 'Yellow', label: 'Yellow 100/25', surface: '#f2f93c', background: '#fcfece' },
   // Red
-  { id: 'red-100-25', group: 'Red',    label: 'Red 100/25',      surface: '#f73232', background: '#fdcccc' },
+  { id: 'red-100-25', group: 'Red', label: 'Red 100/25', surface: '#f73232', background: '#fdcccc' },
   // Purple
-  { id: 'pur-red',    group: 'Purple', label: 'Purple / Red',    surface: '#aa46c3', background: '#f73232' },
-  { id: 'pur-100-25', group: 'Purple', label: 'Purple 100/25',   surface: '#aa46c3', background: '#ead1f0' },
+  { id: 'pur-red', group: 'Purple', label: 'Purple / Red', surface: '#aa46c3', background: '#f73232' },
+  { id: 'pur-100-25', group: 'Purple', label: 'Purple 100/25', surface: '#aa46c3', background: '#ead1f0' },
   // Navy
-  { id: 'nav-gry',    group: 'Navy',   label: 'Navy / Lt.Grey',  surface: '#01172b', background: '#a6bfcc' },
+  { id: 'nav-gry', group: 'Navy', label: 'Navy / Lt.Grey', surface: '#01172b', background: '#a6bfcc' },
 ];
 
 // Complexity meta — controls block count only; height is driven by Trend Volatility
 export const COMPLEXITY = {
-  1: { label: 'Low',     amountOpts: [3],    description: '3 groups' },
-  2: { label: 'Med',     amountOpts: [4, 5], description: '4–5 groups' },
-  3: { label: 'High',    amountOpts: [6],    description: '6 groups' },
+  1: { label: 'Low', amountOpts: [3], description: '3 groups' },
+  2: { label: 'Med', amountOpts: [4, 5], description: '4–5 groups' },
+  3: { label: 'High', amountOpts: [6], description: '6 groups' },
   4: { label: 'Extreme', amountOpts: [7, 8], description: '7–8 groups' },
 };
 
 export const START_HEIGHT_OPTIONS = [
-  { value: 0,  label: '0',  sub: 'Bot' },
-  { value: 4,  label: '4',  sub: '' },
-  { value: 8,  label: '8',  sub: 'Ctr' },
+  { value: 0, label: '0', sub: 'Bot' },
+  { value: 4, label: '4', sub: '' },
+  { value: 8, label: '8', sub: 'Ctr' },
   { value: 12, label: '12', sub: '' },
   { value: 16, label: '16', sub: 'Top' },
 ];
 
 export const END_HEIGHT_OPTIONS = [
-  { value: 0,  label: '0',  sub: 'Bot' },
-  { value: 4,  label: '4',  sub: '' },
-  { value: 8,  label: '8',  sub: 'Ctr' },
+  { value: 0, label: '0', sub: 'Bot' },
+  { value: 4, label: '4', sub: '' },
+  { value: 8, label: '8', sub: 'Ctr' },
   { value: 12, label: '12', sub: '' },
   { value: 16, label: '16', sub: 'Top' },
 ];
 
 // Default parameters
 export const DEFAULT_PARAMS = {
-  blockMin:      3,    // Minimum number of blocks
-  blockMax:      5,    // Maximum number of blocks
-  startX:        0,    // 0–15: left edge of first block
-  startY:        10,   // 0–15: top edge of first block
-  startMinW:     2,
-  startMaxW:     4,
-  startMinH:     4,
-  startMaxH:     8,
-  endX:          16,   // 1–16: right edge of last block (bottom-right corner X)
-  endY:          6,    // 1–16: bottom edge of last block (bottom-right corner Y)
-  endMinW:       6,
-  endMaxW:       10,
-  endMinH:       4,
-  endMaxH:       8,
+  blockMin: 3,    // Minimum number of blocks
+  blockMax: 5,    // Maximum number of blocks
+  startX: 0,    // 0–15: left edge of first block (bottom-left corner X)
+  startY: 15,   // 0–15: bottom edge of first block (bottom-left corner Y)
+  startMinW: 1,
+  startMaxW: 3,
+  startMinH: 1,
+  startMaxH: 3,
+  endX: 15,   // 0–15: right edge of last block (bottom-right corner X)
+  endY: 0,    // 0–15: bottom edge of last block (bottom-right corner Y)
+  endMinW: 6,
+  endMaxW: 10,
+  endMinH: 4,
+  endMaxH: 8,
   overlapChance: 0,    // 0=Off, 1=On
-  cornerChance:  0,    // 0–3 exact corner connections
 };
 
 // Build generation config from the UI parameters
 export function buildConfigFromParams({
   blockMin = 3, blockMax = 5,
-  startX = 0, startY = 10,
+  startX = 0, startY = 15,
   startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
-  endX = 16,  endY = 6,
+  endX = 15, endY = 5,
   endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8,
   overlapChance = 0, cornerChance = 0,
 }) {
   return {
     blockMin,
     blockMax,
-    startY,                            // top-edge Y of first block
-    exitVal:      endY,                // bottom-edge Y of last block
+    startY,                            // bottom-edge Y of first block
+    exitVal: endY,                     // top-edge Y of last block
     startX,                            // first block left-edge X
-    targetSpan:   endX - startX,       // X columns from startX to endX
+    targetSpan: (endX + 1) - startX,   // X columns from startX to endX inclusive
     startMinW, startMaxW, startMinH, startMaxH,
     endMinW, endMaxW, endMinH, endMaxH,
     allowOverlap: overlapChance > 0,
-    targetCorners: cornerChance,
   };
 }
 
@@ -150,50 +148,51 @@ function makeHeights(cfg, rng) {
   const { amount, connectionTypes, forcedStartH, forcedEndH } = cfg;
 
   // Staircase trend (start height !== end height):
-  // heights must sum to Math.abs(ev - xv) + shared rows so they tile the trend exactly.
   const ev = typeof cfg.emergenceVal === 'number' ? cfg.emergenceVal : ROWS;
-  const xv = typeof cfg.exitVal      === 'number' ? cfg.exitVal      : ev;
+  const xv = typeof cfg.exitVal === 'number' ? cfg.exitVal : ev;
   if (ev !== xv && connectionTypes) {
-    // Connection 1 (i=1) can share 1 row if vertical, others share 2 rows.
+    const h0 = forcedStartH != null ? clamp(forcedStartH, 1, 14) : rand(ALLOWED_HEIGHTS, rng);
+    const startY = Math.max(0, ev - h0);
+    const gap = Math.abs(startY - xv);
+
     const verticalCount1 = connectionTypes[1] === 'vertical' ? 1 : 0;
     const verticalCountRest = connectionTypes.slice(2).filter(t => t === 'vertical').length;
-    const targetSum = Math.abs(ev - xv) + (verticalCount1 * 1) + (verticalCountRest * 2);
+    let targetSum = gap + (verticalCount1 * 1) + (verticalCountRest * 2);
 
-    const heights = [];
+    const heights = [h0];
+    const hN_1 = forcedEndH != null ? clamp(forcedEndH, 1, 14) : null;
+
+    if (hN_1 != null) {
+      targetSum -= hN_1;
+    }
+
+    const blocksToGenerate = hN_1 != null ? amount - 2 : amount - 1;
     let remaining = targetSum;
-    // The first amount-1 heights (0 to amount-2) must sum to targetSum
-    for (let i = 0; i < amount - 2; i++) {
-      const minLeft = amount - i - 2;
-      const maxH    = Math.min(14, remaining - minLeft);
-      const pool    = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
 
-      let picked;
+    for (let i = 0; i < blocksToGenerate - 1; i++) {
+      const minLeft = blocksToGenerate - 1 - i;
+      const maxH = Math.max(1, Math.min(14, remaining - minLeft));
+      const pool = ALLOWED_HEIGHTS.filter(h => h >= 1 && h <= maxH);
+
+      let picked = 1;
       if (pool.length) {
-        const avgH = targetSum / (amount - 1);
+        const avgH = targetSum / blocksToGenerate;
         const sortedPool = [...pool].sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
         const subPool = sortedPool.slice(0, 3);
         picked = subPool.length ? rand(subPool, rng) : rand(pool, rng);
-      } else {
-        picked = 1;
       }
 
       heights.push(picked);
       remaining -= picked;
     }
-    heights.push(clamp(remaining, 1, 14));
 
-    // Generate the last block height independently (must be >= heights[amount-2])
-    const minLastH = heights[heights.length - 1];
-    const avgH = targetSum / (amount - 1);
-    const pool = ALLOWED_HEIGHTS
-      .filter(h => h >= minLastH)
-      .sort((a, b) => Math.abs(a - avgH) - Math.abs(b - avgH));
-    const subPool = pool.slice(0, 3);
-    heights.push(subPool.length ? rand(subPool, rng) : minLastH);
+    if (hN_1 != null) {
+      heights.push(clamp(remaining, 1, 14)); // h_{N-2}
+      heights.push(hN_1); // h_{N-1}
+    } else {
+      heights.push(clamp(remaining, 1, 14)); // h_{N-1}
+    }
 
-    heights.sort((a, b) => a - b);
-    if (forcedStartH != null) heights[0]              = clamp(forcedStartH, 1, 14);
-    if (forcedEndH   != null) heights[heights.length - 1] = clamp(forcedEndH, 1, 14);
     return heights;
   }
 
@@ -204,27 +203,27 @@ function makeHeights(cfg, rng) {
   const finalPool = pool.length ? pool : [forcedStartH ?? 1];
   const h = Array(amount).fill(null).map(() => rand(finalPool, rng));
   h.sort((a, b) => a - b);
-  if (forcedStartH != null) h[0]          = clamp(forcedStartH, 1, 14);
-  if (forcedEndH   != null) h[h.length - 1] = clamp(forcedEndH, 1, 14);
+  if (forcedStartH != null) h[0] = clamp(forcedStartH, 1, 14);
+  if (forcedEndH != null) h[h.length - 1] = clamp(forcedEndH, 1, 14);
   return h;
 }
 
 function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTypes = null, targetSpan = COLS, forcedStartW = null, forcedEndW = null, allowOverlap = false) {
-  const maxW     = Math.max(1, targetSpan - amount + 1);
+  const maxW = Math.max(1, targetSpan - amount + 1);
   const allowedW = Array.from({ length: maxW }, (_, i) => i + 1);
 
-  const avgW       = targetSpan / amount;
+  const avgW = targetSpan / amount;
   const maxTargetW = Math.min(maxW, avgW * 2);
   const startW = forcedStartW != null ? forcedStartW : 3;
-  const endW   = forcedEndW   != null ? forcedEndW   : 8;
+  const endW = forcedEndW != null ? forcedEndW : 8;
 
   for (let attempt = 0; attempt < 1000; attempt++) {
     const widths = Array(amount).fill(0).map((_, i) => {
       if (i === 0 && forcedStartW != null) return clamp(forcedStartW, 1, targetSpan);
       if (i === amount - 1 && forcedEndW != null) return clamp(forcedEndW, 1, targetSpan);
-      const t      = amount > 1 ? i / (amount - 1) : 0.5;
+      const t = amount > 1 ? i / (amount - 1) : 0.5;
       const targetW = startW + t * (endW - startW);
-      const pool   = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
+      const pool = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
       const poolSz = 3;
       return rand(pool.slice(0, poolSz), rng);
     });
@@ -277,13 +276,13 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
   }
 
   // Fallback: even split, positional (no sort)
-  const base   = Math.floor(targetSpan / amount);
+  const base = Math.floor(targetSpan / amount);
   const widths = Array(amount).fill(base);
-  if (forcedStartW != null) widths[0]          = clamp(forcedStartW, 1, targetSpan);
-  if (forcedEndW   != null) widths[amount - 1] = clamp(forcedEndW,   1, targetSpan);
-  
+  if (forcedStartW != null) widths[0] = clamp(forcedStartW, 1, targetSpan);
+  if (forcedEndW != null) widths[amount - 1] = clamp(forcedEndW, 1, targetSpan);
+
   let diff = targetSpan - widths.reduce((a, b) => a + b, 0);
-  
+
   if (amount > 2) {
     if (diff > 0) {
       for (let i = 1; diff > 0; i = i === amount - 2 ? 1 : i + 1, diff--) widths[i]++;
@@ -311,20 +310,28 @@ function makeWidths(heights, amount, rng, strictNoDupDims = false, connectionTyp
 function generateSinglePatternRects(cfg, rng) {
   const amount = Math.max(2, randRange(cfg.blockMin ?? 3, cfg.blockMax ?? 5, rng));
 
-  const startH = randRange(cfg.startMinH ?? 1, cfg.startMaxH ?? 14, rng);
-  const endH = randRange(cfg.endMinH ?? 1, cfg.endMaxH ?? 14, rng);
+  let startH = randRange(cfg.startMinH ?? 1, cfg.startMaxH ?? 14, rng);
+  // Start block is Bottom-Left anchored. It scales UPWARDS.
+  // The bottom-most row index is cfg.startY. Max possible height is (cfg.startY + 1).
+  startH = Math.max(1, Math.min(startH, (cfg.startY ?? 15) + 1));
+
+  let endH = randRange(cfg.endMinH ?? 1, cfg.endMaxH ?? 14, rng);
+  // End block is Top-Right anchored. It scales DOWNWARDS.
+  // The top-most row index is cfg.endY. Max possible height is (ROWS - cfg.endY).
+  endH = Math.max(1, Math.min(endH, ROWS - (cfg.endY ?? 0)));
   const startW = randRange(cfg.startMinW ?? 1, cfg.startMaxW ?? 14, rng);
   const endW = randRange(cfg.endMinW ?? 1, cfg.endMaxW ?? 14, rng);
 
   // Hoist anchor / span variables so they're available before makeHeights
-  const emergenceVal = clamp(cfg.startY + startH, 0, ROWS);
-  const exitVal     = cfg.exitVal ?? emergenceVal;
+  // emergenceVal is the bottom edge coordinate (y + h)
+  const emergenceVal = clamp((cfg.startY ?? 15) + 1, 0, ROWS);
+  const exitVal = cfg.exitVal ?? emergenceVal;
   const isStaircase = emergenceVal !== exitVal;
-  const ascending   = emergenceVal > exitVal;
+  const ascending = emergenceVal > exitVal;
 
   // Decide connectionTypes upfront for every adjacent pair
   const connectionTypes = Array(amount).fill(null);
-  const targetCorners = cfg.targetCorners ?? 0;
+  const targetCorners = cfg.targetCorners !== undefined ? cfg.targetCorners : Math.floor(rng() * 3);
   const indices = Array.from({ length: amount - 1 }, (_, i) => i + 1);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -344,15 +351,15 @@ function generateSinglePatternRects(cfg, rng) {
   const heights = makeHeights(cfgAmt, rng);
 
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const targetSpan   = cfg.targetSpan ?? COLS;
+  const targetSpan = cfg.targetSpan ?? COLS;
   const { widths, overlaps } = makeWidths(
     heights, amount, rng, flatBaseline, connectionTypes,
     targetSpan, startW, endW, cfg.allowOverlap
   );
 
   // ── Baseline Y positions — linear interpolation from startY to exitY ─────
-  const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
-  const exitY  = clamp(exitVal      - heights[amount-1], 0, ROWS - heights[amount-1]);
+  const startY = clamp(emergenceVal - heights[0], 0, ROWS - heights[0]);
+  const exitY = clamp(exitVal, 0, ROWS - heights[amount - 1]);
 
   const baseline = heights.map((h, i) => {
     const t = amount > 1 ? i / (amount - 1) : 0;
@@ -383,7 +390,7 @@ function generateSinglePatternRects(cfg, rng) {
       const useHorizontalEdge = (type === 'corner' || type === 'horizontal');
       const shareOffset = i === 1 ? 1 : 2;
       y = ascending
-        ? (useHorizontalEdge ? prevY - h     : prevY - h + shareOffset)
+        ? (useHorizontalEdge ? prevY - h : prevY - h + shareOffset)
         : (useHorizontalEdge ? prevY + prevH : prevY + prevH - shareOffset);
 
     } else if (i === amount - 1) {
@@ -398,11 +405,11 @@ function generateSinglePatternRects(cfg, rng) {
         const below = prevY + prevH;
         const okAbove = above >= 0;
         const okBelow = below + h <= ROWS;
-        
+
         // Find which direction gets us closer to exitY
         const distAbove = Math.abs(above - exitY);
         const distBelow = Math.abs(below - exitY);
-        
+
         let targetY;
         if (okAbove && okBelow) {
           // 80% chance to step towards the goal, 20% chance to step away (for randomness)
@@ -418,7 +425,7 @@ function generateSinglePatternRects(cfg, rng) {
           targetY = below;
         } else {
           // Dead end, fallback to above and let grid clamping handle it
-          targetY = above; 
+          targetY = above;
         }
 
         if (cfg.allowOverlap && rng() < 0.5) {
@@ -436,15 +443,15 @@ function generateSinglePatternRects(cfg, rng) {
         // Blocks share a vertical edge strip (x-overlap = 0)
         const edgeLo = clamp(prevY - h + 1, 0, ROWS - h);
         const edgeHi = clamp(prevY + prevH - 1, 0, ROWS - h);
-        
+
         // Corridor ensures exitY is still reachable with remaining block heights
         const remainingH = heights.slice(i + 1).reduce((a, b) => a + b, 0);
         const corridorLo = clamp(exitY - remainingH, 0, ROWS - h);
         const corridorHi = clamp(exitY + remainingH, 0, ROWS - h);
-        
+
         const lo = Math.max(edgeLo, corridorLo);
         const hi = Math.min(edgeHi, corridorHi);
-        
+
         if (lo <= hi) {
           y = randRange(lo, hi, rng);
         } else {
@@ -460,9 +467,9 @@ function generateSinglePatternRects(cfg, rng) {
     const type = connectionTypes[i];
     if (!isLastBlock && type === 'vertical' && prevY !== null && y === prevY) {
       const down = y + 1;
-      const up   = y - 1;
+      const up = y - 1;
       if (down <= ROWS - h && down < prevY + prevH) y = down;
-      else if (up >= 0 && up > prevY - h)           y = up;
+      else if (up >= 0 && up > prevY - h) y = up;
     }
 
     rects.push({ x, y, w, h });
@@ -487,7 +494,7 @@ function isValidPattern(rects, cfg) {
   const expectedStartY = clamp(emergenceVal - rects[0].h, 0, ROWS - rects[0].h);
   if (rects[0].y !== expectedStartY) return false;
 
-  const expectedExitY = clamp(exitVal - rects[amount - 1].h, 0, ROWS - rects[amount - 1].h);
+  const expectedExitY = clamp(exitVal, 0, ROWS - rects[amount - 1].h);
   if (rects[amount - 1].y !== expectedExitY) return false;
 
   // 2. Count actual corner connections and check connectivity/gaps
@@ -501,7 +508,7 @@ function isValidPattern(rects, cfg) {
     const overlapX = Math.max(0, Math.min(rects[i - 1].x + rects[i - 1].w, rects[i].x + rects[i].w) - Math.max(rects[i - 1].x, rects[i].x));
     const overlapY = Math.max(0, Math.min(rects[i - 1].y + rects[i - 1].h, rects[i].y + rects[i].h) - Math.max(rects[i - 1].y, rects[i].y));
     const isCornerMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX === 0);
-    
+
     const isHorizontalEdgeMeet = ((yA === yB + hB) || (yB === yA + hA)) && (overlapX >= 1);
 
     if (isCornerMeet) {
@@ -514,12 +521,6 @@ function isValidPattern(rects, cfg) {
       return false;
     }
   }
-
-  // 3. Validate corners count matches parameters
-  const targetCorners = cfg.targetCorners ?? 0;
-  if (actualCorners !== targetCorners) return false;
-
-
 
   // 4. Duplicate dimensions check for adjacent edge-connected blocks
   for (let i = 1; i < amount; i++) {
@@ -552,8 +553,11 @@ function isValidPattern(rects, cfg) {
 export function generatePatternRects(cfg, rng = Math.random) {
   let rects = null;
   for (let attempt = 0; attempt < 1000; attempt++) {
-    rects = generateSinglePatternRects(cfg, rng);
-    if (isValidPattern(rects, cfg)) {
+    // If we struggle to find a path, prioritize location by relaxing corner requirements
+    const currentCfg = attempt > 500 ? { ...cfg, targetCorners: 0 } : cfg;
+
+    rects = generateSinglePatternRects(currentCfg, rng);
+    if (isValidPattern(rects, currentCfg)) {
       return rects;
     }
   }
@@ -617,10 +621,10 @@ function qsum(t, x, y, w, h) {
 }
 
 export function extractBlockGroups(blocks) {
-  const active  = blocks.map(v => (v === 0 ? 1 : 0));
+  const active = blocks.map(v => (v === 0 ? 1 : 0));
   const overlap = new Uint8Array(COLS * ROWS);
   const covered = new Uint8Array(COLS * ROWS);
-  const rects   = [];
+  const rects = [];
 
   for (let k = 0; k < 6; k++) {
     const sumA = buildSum(active, COLS, ROWS);
@@ -658,7 +662,7 @@ export function extractBlockGroups(blocks) {
 
             const aCount = qsum(sumA, x, y, w, h);
             const cCount = qsum(sumC, x, y, w, h);
-            const score  = (aCount - cCount) - 1.5 * (w * h - aCount);
+            const score = (aCount - cCount) - 1.5 * (w * h - aCount);
             if (score > bestScore) { bestScore = score; best = { x, y, w, h }; }
           }
         }
@@ -684,8 +688,8 @@ export function extractBlockGroups(blocks) {
       if (active[i] !== 1 || overlap[i] > 0) continue;
       const r = Math.floor(i / COLS), c = i % COLS;
       const cand = r + 1 < ROWS ? { x: c, y: r, w: 1, h: 2 }
-                 : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
-                 : null;
+        : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
+          : null;
       if (!cand) continue;
       rects.push(cand);
       for (let rr = cand.y; rr < cand.y + cand.h; rr++)
@@ -701,8 +705,8 @@ export function extractBlockGroups(blocks) {
         if (active[i] !== 1) continue;
         const r = Math.floor(i / COLS), c = i % COLS;
         const cand = r + 1 < ROWS ? { x: c, y: r, w: 1, h: 2 }
-                   : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
-                   : { x: c, y: r, w: 1, h: 1 };
+          : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
+            : { x: c, y: r, w: 1, h: 1 };
         rects.push(cand);
         placed = true;
       }
@@ -715,15 +719,9 @@ export function extractBlockGroups(blocks) {
 }
 
 // ─── Seed encode / decode ────────────────────────────────────────────────────
-// V1 format: 15 bytes → 21 B62 chars (old seeds, no block sizes)
-// V2 format: 16 bytes → 22 B62 chars (adds startBlockSize + endBlockSize in b[15])
-// V3 format: 18 bytes → 25 B62 chars (8 dimension bounds)
-// V4 format: 19 bytes → 26 B62 chars (adds startX, startY, endX, endY explicit coords)
+// V4 format: 19 bytes → 26 B62 chars (explicit bounding coords)
 
 const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const B62_LEN_V1 = 21; // 15 bytes
-const B62_LEN_V2 = 22; // 16 bytes — ceil(128 bits / log2(62))
-const B62_LEN_V3 = 25; // 18 bytes
 const B62_LEN_V4 = 26; // 19 bytes
 
 function bytesToB62(bytes, targetLen) {
@@ -753,23 +751,23 @@ function bytesToHex(r, g, b) {
 
 export function encodeSeed(seed, params, colorA, colorB) {
   const {
-    blockMin = 3, blockMax = 5, overlapChance, cornerChance,
-    startX = 0, startY = 10, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
-    endX = 16, endY = 6, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
+    blockMin = 3, blockMax = 5, overlapChance,
+    startX = 0, startY = 15, startMinW = 2, startMaxW = 4, startMinH = 4, startMaxH = 8,
+    endX = 15, endY = 0, endMinW = 6, endMaxW = 10, endMinH = 4, endMaxH = 8
   } = params;
   const [ar, ag, ab] = hexToBytes(colorA);
   const [br, bg, bb] = hexToBytes(colorB);
 
   const blockCountByte = (blockMin & 0xF) | ((blockMax & 0xF) << 4);
   const startCoordByte = (startX & 0xF) | ((startY & 0xF) << 4);
-  const endCoordByte   = ((endX - 1) & 0xF) | (((endY - 1) & 0xF) << 4);
-  
-  const connectionByte = (cornerChance & 0x3);
+  const endCoordByte = (endX & 0xF) | ((endY & 0xF) << 4);
+
+  const connectionByte = 0; // Legacy unused
 
   const startWByte = (startMinW & 0xF) | ((startMaxW & 0xF) << 4);
   const startHByte = (startMinH & 0xF) | ((startMaxH & 0xF) << 4);
-  const endWByte   = (endMinW & 0xF) | ((endMaxW & 0xF) << 4);
-  const endHByte   = (endMinH & 0xF) | ((endMaxH & 0xF) << 4);
+  const endWByte = (endMinW & 0xF) | ((endMaxW & 0xF) << 4);
+  const endHByte = (endMinH & 0xF) | ((endMaxH & 0xF) << 4);
 
   const buf = new Uint8Array([
     (seed >>> 24) & 0xff, (seed >>> 16) & 0xff, (seed >>> 8) & 0xff, seed & 0xff,
@@ -783,96 +781,33 @@ export function encodeSeed(seed, params, colorA, colorB) {
 export function decodeSeed(str) {
   try {
     const s = str.trim();
-    const isV1 = s.length === B62_LEN_V1;
-    const isV2 = s.length === B62_LEN_V2;
-    const isV3 = s.length === B62_LEN_V3;
-    const isV4 = s.length === B62_LEN_V4;
-    if ((!isV1 && !isV2 && !isV3 && !isV4) || ![...s].every(c => B62.includes(c))) return null;
+    if (s.length !== B62_LEN_V4 || ![...s].every(c => B62.includes(c))) return null;
 
-    const byteCount = isV4 ? 19 : isV3 ? 18 : isV2 ? 16 : 15;
-    const b         = b62ToBytes(s, byteCount);
-    const seed      = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    const byteCount = 19;
+    const b = b62ToBytes(s, byteCount);
+    const seed = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
 
-    let params;
-    let colorA, colorB;
+    const params = {
+      blockMin: b[4] & 0xF,
+      blockMax: (b[4] >> 4) & 0xF,
+      startX: b[5] & 0xF,
+      startY: (b[5] >> 4) & 0xF,
+      overlapChance: b[6],
+      startMinW: b[8] & 0xF,
+      startMaxW: (b[8] >> 4) & 0xF,
+      startMinH: b[9] & 0xF,
+      startMaxH: (b[9] >> 4) & 0xF,
+      endMinW: b[10] & 0xF,
+      endMaxW: (b[10] >> 4) & 0xF,
+      endMinH: b[11] & 0xF,
+      endMaxH: (b[11] >> 4) & 0xF,
+      endX: b[12] & 0xF,
+      endY: (b[12] >> 4) & 0xF,
+    };
+    const colorA = bytesToHex(b[13], b[14], b[15]);
+    const colorB = bytesToHex(b[16], b[17], b[18]);
 
-    if (isV4) {
-      params = {
-        blockMin:       b[4] & 0xF,
-        blockMax:       (b[4] >> 4) & 0xF,
-        startX:         b[5] & 0xF,
-        startY:         (b[5] >> 4) & 0xF,
-        overlapChance:  b[6],
-        cornerChance:   b[7] & 0x3,
-        startMinW:      b[8] & 0xF,
-        startMaxW:      (b[8] >> 4) & 0xF,
-        startMinH:      b[9] & 0xF,
-        startMaxH:      (b[9] >> 4) & 0xF,
-        endMinW:        b[10] & 0xF,
-        endMaxW:        (b[10] >> 4) & 0xF,
-        endMinH:        b[11] & 0xF,
-        endMaxH:        (b[11] >> 4) & 0xF,
-        endX:           (b[12] & 0xF) + 1,
-        endY:           ((b[12] >> 4) & 0xF) + 1,
-      };
-      colorA = bytesToHex(b[13], b[14], b[15]);
-      colorB = bytesToHex(b[16], b[17], b[18]);
-    } else {
-      // V1, V2, V3 decode fallback (legacy)
-      const oldStartHeight = (b[5] & 0xF) * 4;
-      const oldEndHeight   = ((b[5] >> 4) & 0xF) * 4;
-      const legacyComplexity = b[4];
-      const fallbackBlockMin = legacyComplexity === 1 ? 3 : legacyComplexity === 2 ? 4 : legacyComplexity === 3 ? 6 : 7;
-      const fallbackBlockMax = legacyComplexity === 1 ? 4 : legacyComplexity === 2 ? 5 : legacyComplexity === 3 ? 6 : 8;
-
-      if (isV3) {
-        params = {
-          blockMin:       fallbackBlockMin,
-          blockMax:       fallbackBlockMax,
-          startX:         0,
-          startY:         oldStartHeight || 10,
-          overlapChance:  b[6],
-          cornerChance:   b[7] & 0x3,
-          horizontalChance: 0,
-          startMinW:      b[8] & 0xF,
-          startMaxW:      (b[8] >> 4) & 0xF,
-          startMinH:      b[9] & 0xF,
-          startMaxH:      (b[9] >> 4) & 0xF,
-          endMinW:        b[10] & 0xF,
-          endMaxW:        (b[10] >> 4) & 0xF,
-          endMinH:        b[11] & 0xF,
-          endMaxH:        (b[11] >> 4) & 0xF,
-          endX:           16,
-          endY:           oldEndHeight || 6,
-        };
-        colorA = bytesToHex(b[12], b[13], b[14]);
-        colorB = bytesToHex(b[15], b[16], b[17]);
-      } else {
-        params = {
-          blockMin:       fallbackBlockMin,
-          blockMax:       fallbackBlockMax,
-          startX:         0,
-          startY:         oldStartHeight || 10,
-          overlapChance:  b[6],
-          cornerChance:   b[7] & 0x3,
-          horizontalChance: 0,
-          startMinW:      2,
-          startMaxW:      4,
-          startMinH:      4,
-          startMaxH:      8,
-          endMinW:        6,
-          endMaxW:        10,
-          endMinH:        4,
-          endMaxH:        8,
-          endX:           16,
-          endY:           oldEndHeight || 6,
-        };
-        colorA = bytesToHex(b[9],  b[10], b[11]);
-        colorB = bytesToHex(b[12], b[13], b[14]);
-      }
-    }
-
-    if (params.overlapChance > 10 || params.cornerChance > 3) return null;
+    if (params.overlapChance > 10) return null;
 
     return { seed, params, colorA, colorB };
   } catch {
@@ -913,7 +848,7 @@ export async function copySVGToClipboard(svgString) {
   await navigator.clipboard.write([
     new ClipboardItem({
       'text/plain': new Blob([svgString], { type: 'text/plain' }),
-      'text/html':  new Blob([`<html><body>${svgString}</body></html>`], { type: 'text/html' }),
+      'text/html': new Blob([`<html><body>${svgString}</body></html>`], { type: 'text/html' }),
     }),
   ]);
 }
