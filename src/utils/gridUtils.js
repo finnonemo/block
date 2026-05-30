@@ -178,45 +178,44 @@ function makeHeights(cfg, rng) {
     return heights;
   }
 
-  // Non-staircase: startBlockSize/endBlockSize define target heights at each end.
-  // Each block interpolates linearly between them. sizeScale controls pool tightness.
-  // Heights are sorted ascending so the smallest block is always at position 0 (start).
-  const startBlockSize = cfg.startBlockSize ?? 3;
-  const endBlockSize   = cfg.endBlockSize   ?? 8;
-  // Map 0–10 scale to allowed height range 1–14
-  const startH = 1 + (startBlockSize / 10) * 13;
-  const endH   = 1 + (endBlockSize   / 10) * 13;
+  // Non-staircase: sizeScale = mean block height, volatility = height variation range.
+  // volatility=0 → all blocks the same height (pool of 1 near meanH)
+  // volatility=1 → heights spread across the full allowed range
+  const meanH     = 1 + sizeScale * 13;   // sizeScale 0→1 maps to height 1→14
+  const volatility = cfg.volatility ?? 0.5;
+  const sorted    = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - meanH) - Math.abs(b - meanH));
+  const poolSz    = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * volatility));
+  const pool      = sorted.slice(0, poolSz);
 
-  const h = Array(amount).fill(null).map((_, i) => {
-    const t      = amount > 1 ? i / (amount - 1) : 0.5;
-    const target = startH + t * (endH - startH);
-    // sizeScale=0 → wider pool (random variation); sizeScale=1 → tight pool near target
-    const sorted  = [...ALLOWED_HEIGHTS].sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
-    const poolSz  = Math.max(1, Math.round(ALLOWED_HEIGHTS.length * (1 - sizeScale * 0.9)));
-    return rand(sorted.slice(0, poolSz), rng);
-  });
-  h.sort((a, b) => a - b); // ascending: smallest → first block, largest → last block
+  const h = Array(amount).fill(null).map(() => rand(pool, rng));
+  h.sort((a, b) => a - b);
   return h;
 }
 
-function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, widthScale = 0, sizeScale = 0) {
-  // Max width: up to 14, but leave at least 1 column for every other block
-  const maxW    = Math.min(14, COLS - amount + 1);
+function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, connectionTypes = null, startBlockSize = 3, endBlockSize = 8, sizeScale = 0) {
+  const maxW     = Math.min(14, COLS - amount + 1);
   const allowedW = ALLOWED_WIDTHS.filter(w => w <= maxW);
 
-  for (let attempt = 0; attempt < 1000; attempt++) {
-    const widths  = Array(amount).fill(0).map((_, i) => {
-      const progress = i / (amount - 1);
-      const avgW = COLS / amount;
-      const expansionW = 1 + progress * (maxW - 1);
-      const targetW_trend = avgW + widthScale * (expansionW - avgW);
-      const targetW = targetW_trend + sizeScale * (heights[i] - targetW_trend);
+  // Scale targets so the arithmetic series can always sum to ~COLS.
+  // Cap at min(maxW, 2×avgW) so extreme combos don't overflow the grid span.
+  const avgW       = COLS / amount;
+  const maxTargetW = Math.min(maxW, avgW * 2);
+  const startW = 1 + (startBlockSize / 10) * (maxTargetW - 1);
+  const endW   = 1 + (endBlockSize   / 10) * (maxTargetW - 1);
 
-      const pool = [...allowedW].sort((a, b) => Math.abs(a - targetW) - Math.abs(b - targetW));
-      const subPool = pool.slice(0, 3);
-      return subPool.length ? rand(subPool, rng) : rand(allowedW, rng);
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const widths = Array(amount).fill(0).map((_, i) => {
+      const t      = amount > 1 ? i / (amount - 1) : 0.5;
+      const targetW = startW + t * (endW - startW);
+      // sizeScale blends width toward height for squareness
+      const blendedW = targetW + sizeScale * (heights[i] - targetW);
+
+      const pool   = [...allowedW].sort((a, b) => Math.abs(a - blendedW) - Math.abs(b - blendedW));
+      // First and last blocks: use exact closest value (pool=1); middle: allow variation (pool=3)
+      const poolSz = (i === 0 || i === amount - 1) ? 1 : 3;
+      return rand(pool.slice(0, poolSz), rng);
     });
-    widths.sort((a, b) => a - b);
+    // Widths are positional — no sort
     const overlaps = [0];
 
     for (let i = 1; i < amount; i++) {
@@ -264,12 +263,11 @@ function makeWidths(heights, amount, overlapArea, rng, strictNoDupDims = false, 
     return { widths, overlaps };
   }
 
-  // Fallback: even split, no overlaps
+  // Fallback: even split, positional (no sort)
   const base   = Math.floor(COLS / amount);
   const widths = Array(amount).fill(base);
   let diff     = COLS - widths.reduce((a, b) => a + b, 0);
   for (let i = 0; diff > 0; i = (i + 1) % amount, diff--) widths[i]++;
-  widths.sort((a, b) => a - b);
   return { widths, overlaps: Array(amount).fill(0) };
 }
 
@@ -315,26 +313,15 @@ function generateSinglePatternRects(cfg, rng) {
 
   // Flat only when both entry AND exit are at the same extreme edge
   const flatBaseline = (emergenceVal === exitVal) && (emergenceVal === 0 || emergenceVal === ROWS);
-  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.widthScale, cfg.sizeScale);
+  const { widths, overlaps } = makeWidths(heights, amount, oc, rng, flatBaseline, connectionTypes, cfg.startBlockSize, cfg.endBlockSize, cfg.sizeScale);
 
-  const volatility = cfg.volatility ?? 0.5;
-
-  // ── Baseline Y positions ─────────────────────────────────────────────────
+  // ── Baseline Y positions — linear interpolation from startY to exitY ─────
   const startY = clamp(emergenceVal - heights[0],        0, ROWS - heights[0]);
   const exitY  = clamp(exitVal      - heights[amount-1], 0, ROWS - heights[amount-1]);
 
-  const isTrendAscending = exitY < startY;
   const baseline = heights.map((h, i) => {
     const t = amount > 1 ? i / (amount - 1) : 0;
-    let u;
-    if (volatility < 0.5) {
-      const p = 1 + (1 - volatility / 0.5) * 2; // ranges from 1 to 3
-      u = isTrendAscending ? Math.pow(t, p) : 1 - Math.pow(1 - t, p);
-    } else {
-      const q = 1 + ((volatility - 0.5) / 0.5) * 2; // ranges from 1 to 3
-      u = isTrendAscending ? 1 - Math.pow(1 - t, q) : Math.pow(t, q);
-    }
-    return clamp(Math.round(startY + u * (exitY - startY)), 0, ROWS - h);
+    return clamp(Math.round(startY + t * (exitY - startY)), 0, ROWS - h);
   });
 
   // ── Y assignment ─────────────────────────────────────────────────────────

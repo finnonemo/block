@@ -240,7 +240,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Trend Volatility ───────────────────────────────────────── */}
       <ParamRow
         label="Trend Volatility"
-        hint="Bends the staircase trend curve"
+        hint="Low = uniform block heights · High = varied heights"
       >
         <ParamSlider
           value={params.volatility ?? 5}
@@ -254,7 +254,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Block Scale ─────────────────────────────────────────────── */}
       <ParamRow
         label="Block Scale"
-        hint="Low = free rectangles · High = W and H match (1×1, 2×2, 3×3…)"
+        hint="Mean block height — Low = small blocks · High = tall blocks"
       >
         <ParamSlider
           value={params.sizeScale ?? 5}
@@ -268,34 +268,28 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       {/* ── Start Block Size ────────────────────────────────────────── */}
       <ParamRow
         label="Start Block Size"
-        hint="Target height of the first (smallest) block"
+        hint="Exact width of the first (leftmost) block"
       >
         <ParamSlider
           value={startBlockSize}
           min={0}
           max={10}
           onChange={v => set('startBlockSize', v)}
-          formatLabel={v => {
-            const h = Math.round(1 + (v / 10) * 13)
-            return `${h}u`
-          }}
+          formatLabel={v => `${v * 10}%`}
         />
       </ParamRow>
 
       {/* ── End Block Size ──────────────────────────────────────────── */}
       <ParamRow
         label="End Block Size"
-        hint="Target height of the last (largest) block"
+        hint="Exact width of the last (rightmost) block"
       >
         <ParamSlider
           value={endBlockSize}
           min={0}
           max={10}
           onChange={v => set('endBlockSize', v)}
-          formatLabel={v => {
-            const h = Math.round(1 + (v / 10) * 13)
-            return `${h}u`
-          }}
+          formatLabel={v => `${v * 10}%`}
         />
       </ParamRow>
 
