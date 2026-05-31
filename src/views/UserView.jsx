@@ -17,6 +17,7 @@ import {
   decodeSeed,
 } from '@/utils/gridUtils'
 import { CATEGORIES, loadGallery, fetchSharedGallery, mergeGalleries } from '@/utils/gallery'
+import { loadDictionary, fetchSharedDictionary, mergeDictionaries } from '@/utils/dictionary'
 
 function makeNewSeed() {
   return (Math.random() * 0x100000000) >>> 0
@@ -31,7 +32,25 @@ function generateState(params, seed) {
 
 // ─── Page 1: Category Picker ──────────────────────────────────────────────────
 
-function CategoryPage({ gallery, onSelect, onSwitchMode }) {
+function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode }) {
+  const [mode, setMode]       = useState('browse') // 'browse' | 'type'
+  const [search, setSearch]   = useState('')
+
+  const filtered = search.trim()
+    ? dictWords.filter(w =>
+        w.word.toLowerCase().includes(search.toLowerCase()) ||
+        w.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
+      )
+    : dictWords
+
+  const handleKeyDown = (e) => {
+    if (e.key !== 'Enter') return
+    const q = search.trim().toLowerCase()
+    const exact = dictWords.find(w => w.word.toLowerCase() === q)
+    if (exact) onSelectWord(exact)
+    else if (filtered.length === 1) onSelectWord(filtered[0])
+  }
+
   return (
     <div className="min-h-screen bg-[#07101e] text-slate-200 flex flex-col">
       <header className="flex items-center px-4 md:px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
@@ -53,64 +72,146 @@ function CategoryPage({ gallery, onSelect, onSwitchMode }) {
         </button>
       </header>
 
-      <div className="flex-1 p-6 md:p-10">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1">Choose a Category</h1>
-          <p className="text-sm text-slate-500 mb-8">Pick a style to browse pattern templates</p>
-
-          <div className="grid grid-cols-2 gap-4">
-            {CATEGORIES.map(cat => {
-              const templates = gallery.templates.filter(t => t.category === cat.id)
-              const previews  = templates.slice(0, 3)
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => templates.length > 0 && onSelect(cat.id)}
-                  disabled={templates.length === 0}
-                  className={cn(
-                    'group text-left bg-[#0a1628] border rounded-xl p-4 transition-all',
-                    templates.length > 0
-                      ? 'border-[#1a2a3a] hover:border-[#50cfff]/40 hover:bg-[#0c1e36] cursor-pointer'
-                      : 'border-[#1a2a3a] opacity-40 cursor-not-allowed'
-                  )}
-                >
-                  {/* Mini previews */}
-                  <div className="flex gap-1.5 mb-4 h-14">
-                    {previews.length > 0 ? previews.map(t => (
-                      <div key={t.id} className="flex-1 rounded overflow-hidden">
-                        <PatternPreview seed={t.seed} size={56} />
-                      </div>
-                    )) : (
-                      <div className="flex-1 rounded bg-[#0c1926] border border-[#1e2d3d] flex items-center justify-center text-slate-700 text-2xl">
-                        {cat.icon}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold text-white group-hover:text-[#50cfff] transition-colors">
-                        {cat.icon} {cat.label}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{cat.description}</p>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-semibold text-slate-500 mt-0.5">
-                      {templates.length} pattern{templates.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {gallery.templates.length === 0 && (
-            <p className="text-center text-slate-600 text-sm mt-8">
-              No patterns in gallery yet. Ask an admin to add some!
-            </p>
-          )}
-        </div>
+      {/* Mode toggle */}
+      <div className="shrink-0 flex gap-0 border-b border-[#1a2a3a] bg-[#0a1628] px-4 md:px-6">
+        {[
+          { id: 'browse', label: 'Browse' },
+          { id: 'type',   label: 'Type to Design' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => { setMode(id); setSearch('') }}
+            className={cn(
+              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all',
+              mode === id
+                ? 'text-[#50cfff] border-[#50cfff]'
+                : 'text-slate-500 border-transparent hover:text-slate-300'
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+
+      {mode === 'type' ? (
+        /* ── Type to Design ─────────────────────────────────────── */
+        <div className="flex-1 p-6 md:p-10">
+          <div className="max-w-xl mx-auto">
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a word to design..."
+              className="w-full px-4 py-3 rounded-xl bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-white placeholder-slate-600 text-sm mb-6"
+            />
+
+            {dictWords.length === 0 ? (
+              <p className="text-center text-slate-600 text-sm py-8">
+                No dictionary words yet. Ask an admin to add some!
+              </p>
+            ) : filtered.length === 0 ? (
+              <p className="text-center text-slate-600 text-sm py-8">
+                No words found — try Browse or a different term.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map(w => (
+                  <button
+                    key={w.id}
+                    onClick={() => onSelectWord(w)}
+                    className="w-full text-left px-4 py-3 rounded-xl bg-[#0a1628] border border-[#1a2a3a] hover:border-[#50cfff]/40 hover:bg-[#0c1e36] transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white group-hover:text-[#50cfff] transition-colors">
+                          {w.word}
+                        </p>
+                        {w.description && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">{w.description}</p>
+                        )}
+                      </div>
+                      {w.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 shrink-0">
+                          {w.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="px-1.5 py-0.5 rounded bg-[#0c1926] border border-[#1e2d3d] text-[9px] text-slate-500">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: w.colorA }} />
+                      <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: w.colorB }} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Browse ─────────────────────────────────────────────── */
+        <div className="flex-1 p-6 md:p-10">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-bold text-white mb-1">Choose a Category</h1>
+            <p className="text-sm text-slate-500 mb-8">Pick a style to browse pattern templates</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              {CATEGORIES.map(cat => {
+                const templates = gallery.templates.filter(t => t.category === cat.id)
+                const previews  = templates.slice(0, 3)
+
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => templates.length > 0 && onSelect(cat.id)}
+                    disabled={templates.length === 0}
+                    className={cn(
+                      'group text-left bg-[#0a1628] border rounded-xl p-4 transition-all',
+                      templates.length > 0
+                        ? 'border-[#1a2a3a] hover:border-[#50cfff]/40 hover:bg-[#0c1e36] cursor-pointer'
+                        : 'border-[#1a2a3a] opacity-40 cursor-not-allowed'
+                    )}
+                  >
+                    <div className="flex gap-1.5 mb-4 h-14">
+                      {previews.length > 0 ? previews.map(t => (
+                        <div key={t.id} className="flex-1 rounded overflow-hidden">
+                          <PatternPreview seed={t.seed} size={56} />
+                        </div>
+                      )) : (
+                        <div className="flex-1 rounded bg-[#0c1926] border border-[#1e2d3d] flex items-center justify-center text-slate-700 text-2xl">
+                          {cat.icon}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-bold text-white group-hover:text-[#50cfff] transition-colors">
+                          {cat.icon} {cat.label}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{cat.description}</p>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-semibold text-slate-500 mt-0.5">
+                        {templates.length} pattern{templates.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {gallery.templates.length === 0 && (
+              <p className="text-center text-slate-600 text-sm mt-8">
+                No patterns in gallery yet. Ask an admin to add some!
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -210,7 +311,7 @@ function EditorPage({ template, onBack }) {
   const isSeedBased = !!decoded
 
   const [seed, setSeed]           = useState(decoded?.seed ?? makeNewSeed())
-  const [params, setParams]       = useState(decoded?.params ?? {})
+  const [params, setParams]       = useState(decoded?.params ?? template.params ?? {})
   const [colorA, setColorA]       = useState(template.colorA ?? decoded?.colorA ?? '#00e76b')
   const [colorB, setColorB]       = useState(template.colorB ?? decoded?.colorB ?? '#01172b')
   const [rectangles, setRects]    = useState([])
@@ -225,12 +326,18 @@ function EditorPage({ template, onBack }) {
       setRects(rects)
       setBlocks(blocks)
     } else if (template.blocks) {
-      // Image/painted template: restore blocks directly
       const rects = extractBlockGroups(template.blocks)
       setBlocks(template.blocks)
       setRects(rects)
+    } else if (template.params && Object.keys(template.params).length > 0) {
+      // Dictionary word: generate a fresh pattern with the word's params
+      const newSeed = makeNewSeed()
+      const { rects, blocks } = generateState(template.params, newSeed)
+      setSeed(newSeed)
+      setRects(rects)
+      setBlocks(blocks)
     }
-  }, [template.seed, template.blocks]) // eslint-disable-line
+  }, [template.seed, template.blocks, template.params]) // eslint-disable-line
 
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
@@ -492,16 +599,20 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
 
 export default function UserView({ onSwitchMode }) {
   const [gallery, setGallery]         = useState(loadGallery)
+  const [dictWords, setDictWords]     = useState(() => loadDictionary().words)
   const [page, setPage]               = useState(1)
+  const [selectedCategory, setCategory]   = useState(null)
+  const [selectedTemplate, setTemplate]   = useState(null)
+  const [editorFromDict, setEditorFromDict] = useState(false)
 
-  // Merge shared gallery.json with any local additions on mount
   useEffect(() => {
     fetchSharedGallery().then(shared => {
       setGallery(prev => mergeGalleries(shared, prev))
     })
+    fetchSharedDictionary().then(shared => {
+      setDictWords(prev => mergeDictionaries(shared, { words: prev }).words)
+    })
   }, [])
-  const [selectedCategory, setCategory] = useState(null)
-  const [selectedTemplate, setTemplate] = useState(null)
 
   const handleSelectCategory = useCallback((catId) => {
     setCategory(catId)
@@ -510,6 +621,22 @@ export default function UserView({ onSwitchMode }) {
 
   const handleSelectTemplate = useCallback((template) => {
     setTemplate(template)
+    setEditorFromDict(false)
+    setPage(3)
+  }, [])
+
+  const handleSelectWord = useCallback((word) => {
+    const enabled = word.enabled ?? { colors: true, params: true }
+    setTemplate({
+      name:   word.word,
+      // null means "don't override" — EditorPage falls back to defaults
+      params: enabled.params ? word.params : {},
+      colorA: enabled.colors ? word.colorA : null,
+      colorB: enabled.colors ? word.colorB : null,
+      seed:   null,
+      blocks: null,
+    })
+    setEditorFromDict(true)
     setPage(3)
   }, [])
 
@@ -527,7 +654,7 @@ export default function UserView({ onSwitchMode }) {
     return (
       <EditorPage
         template={selectedTemplate}
-        onBack={handleBackToTemplates}
+        onBack={editorFromDict ? handleBackToCategories : handleBackToTemplates}
       />
     )
   }
@@ -546,7 +673,9 @@ export default function UserView({ onSwitchMode }) {
   return (
     <CategoryPage
       gallery={gallery}
+      dictWords={dictWords}
       onSelect={handleSelectCategory}
+      onSelectWord={handleSelectWord}
       onSwitchMode={onSwitchMode}
     />
   )

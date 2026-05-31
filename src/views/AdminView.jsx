@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid, Download, Upload } from 'lucide-react'
+import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid, Download, Upload, BookMarked, Plus, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PatternCanvas } from '@/components/PatternCanvas'
 import { ParameterPanel } from '@/components/ParameterPanel'
-import { PatternPreview } from '@/components/PatternPreview'
+import { PatternPreview, PatternSVG } from '@/components/PatternPreview'
 import { ImageImport } from '@/components/ImageImport'
 import {
   COLS, ROWS,
@@ -30,6 +30,16 @@ import {
   exportGalleryFile,
   importGalleryData,
 } from '@/utils/gallery'
+import {
+  loadDictionary,
+  fetchSharedDictionary,
+  mergeDictionaries,
+  addWord,
+  updateWord,
+  removeWord,
+  exportDictionaryFile,
+  importDictionaryData,
+} from '@/utils/dictionary'
 
 const DEFAULT_PAIR = COLOR_PAIRS[0] // Green / Navy
 
@@ -61,16 +71,20 @@ function initApp() {
 export default function AdminView({ onSwitchMode }) {
   const [state, setState]       = useState(initApp)
   const [copyStatus, setCopyStatus] = useState('idle')
-  const [sidebarTab, setSidebarTab] = useState('params') // 'params' | 'gallery'
-  const [gallery, setGallery]   = useState(loadGallery)
+  const [sidebarTab, setSidebarTab] = useState('params') // 'params' | 'gallery' | 'image' | 'dictionary'
+  const [gallery, setGallery]    = useState(loadGallery)
   const [saveModal, setSaveModal] = useState(false)
+  const [dictWords, setDictWords] = useState(() => loadDictionary().words)
+  const [editingWord, setEditingWord] = useState(null) // null | 'new' | word entry
 
   const { seed, params, colorA, colorB, rectangles, blocks } = state
 
-  // On mount: fetch shared gallery.json and merge with any local additions
   useEffect(() => {
     fetchSharedGallery().then(shared => {
       setGallery(prev => mergeGalleries(shared, prev))
+    })
+    fetchSharedDictionary().then(shared => {
+      setDictWords(prev => mergeDictionaries(shared, { words: prev }).words)
     })
   }, [])
 
@@ -136,6 +150,36 @@ export default function AdminView({ onSwitchMode }) {
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
   }, [rectangles, colorA, colorB])
+
+  const handleSaveWord = useCallback((entry) => {
+    let newDict
+    if (entry.id) {
+      newDict = updateWord(entry.id, entry)
+    } else {
+      newDict = addWord(entry)
+    }
+    setDictWords(newDict.words)
+    setEditingWord(null)
+  }, [])
+
+  const handleDeleteWord = useCallback((id) => {
+    const newDict = removeWord(id)
+    setDictWords(newDict.words)
+  }, [])
+
+  const handleExportDictionary = useCallback(() => {
+    exportDictionaryFile({ words: dictWords })
+  }, [dictWords])
+
+  const handleImportDictionary = useCallback(async (file) => {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const imported = importDictionaryData(data)
+      const shared   = await fetchSharedDictionary()
+      setDictWords(mergeDictionaries(shared, imported).words)
+    } catch { /* ignore malformed */ }
+  }, [])
 
   const currentSeed    = seed != null ? encodeSeed(seed, params, colorA, colorB) : null
   const hasActiveCells = blocks.some(v => v === 0)
@@ -239,25 +283,26 @@ export default function AdminView({ onSwitchMode }) {
           {/* Tab bar */}
           <div className="shrink-0 flex border-b border-[#1a2a3a]">
             {[
-              { id: 'params',  label: 'Parameters', Icon: Layers },
-              { id: 'gallery', label: 'Gallery',    Icon: BookOpen },
-              { id: 'image',   label: 'Image',      Icon: LayoutGrid },
-            ].map(({ id, label, Icon }) => (
+              { id: 'params',     label: 'Params',  Icon: Layers,      badge: null },
+              { id: 'gallery',    label: 'Gallery', Icon: BookOpen,    badge: gallery.templates.length || null },
+              { id: 'image',      label: 'Image',   Icon: LayoutGrid,  badge: null },
+              { id: 'dictionary', label: 'Dict',    Icon: BookMarked,  badge: dictWords.length || null },
+            ].map(({ id, label, Icon, badge }) => (
               <button
                 key={id}
                 onClick={() => setSidebarTab(id)}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all border-b-2',
+                  'flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-semibold transition-all border-b-2',
                   sidebarTab === id
                     ? 'text-[#50cfff] border-[#50cfff] bg-[#0c1926]'
                     : 'text-slate-500 border-transparent hover:text-slate-300'
                 )}
               >
-                <Icon size={12} />
+                <Icon size={11} />
                 {label}
-                {id === 'gallery' && gallery.templates.length > 0 && (
+                {badge > 0 && (
                   <span className="ml-0.5 px-1 py-0 rounded-full bg-[#50cfff]/20 text-[#50cfff] text-[9px] font-bold">
-                    {gallery.templates.length}
+                    {badge}
                   </span>
                 )}
               </button>
@@ -339,6 +384,25 @@ export default function AdminView({ onSwitchMode }) {
 
             {sidebarTab === 'image' && (
               <ImageImport onApply={handleImageApply} />
+            )}
+
+            {sidebarTab === 'dictionary' && (
+              editingWord != null ? (
+                <DictWordEditor
+                  entry={editingWord === 'new' ? null : editingWord}
+                  onSave={handleSaveWord}
+                  onCancel={() => setEditingWord(null)}
+                />
+              ) : (
+                <DictionaryTab
+                  words={dictWords}
+                  onAdd={() => setEditingWord('new')}
+                  onEdit={setEditingWord}
+                  onDelete={handleDeleteWord}
+                  onExport={handleExportDictionary}
+                  onImport={handleImportDictionary}
+                />
+              )
             )}
           </div>
 
@@ -777,6 +841,300 @@ function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
           </Button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Dictionary Tab ───────────────────────────────────────────────────────────
+
+function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
+  const importRef = useRef(null)
+  const [search, setSearch] = useState('')
+
+  const filtered = search.trim()
+    ? words.filter(w =>
+        w.word.toLowerCase().includes(search.toLowerCase()) ||
+        w.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
+      )
+    : words
+
+  return (
+    <div className="p-3 space-y-3">
+      {/* Actions row */}
+      <div className="flex gap-2">
+        <Button className="flex-1 gap-1.5 text-xs h-8" onClick={onAdd}>
+          <Plus size={12} /> Add Word
+        </Button>
+        <button
+          title="Export dictionary.json"
+          onClick={onExport}
+          className="px-2.5 h-8 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-slate-400 hover:text-[#50cfff] transition-all"
+        >
+          <Download size={13} />
+        </button>
+        <button
+          title="Import dictionary.json"
+          onClick={() => importRef.current?.click()}
+          className="px-2.5 h-8 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-slate-400 hover:text-[#50cfff] transition-all"
+        >
+          <Upload size={13} />
+        </button>
+        <input ref={importRef} type="file" accept=".json" className="hidden"
+          onChange={e => { if (e.target.files?.[0]) { onImport(e.target.files[0]); e.target.value = '' } }} />
+      </div>
+
+      {/* Search */}
+      {words.length > 4 && (
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Filter words..."
+          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+        />
+      )}
+
+      {/* Word list */}
+      {filtered.length === 0 ? (
+        <p className="text-center text-slate-600 text-xs py-6">
+          {words.length === 0 ? 'No words yet. Add the first one!' : 'No matches.'}
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map(w => (
+            <div
+              key={w.id}
+              className="flex items-start gap-2 bg-[#0c1926] border border-[#1e2d3d] rounded-lg px-3 py-2.5"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white truncate">{w.word}</span>
+                  {w.enabled?.colors !== false && (
+                    <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: w.colorA }} />
+                  )}
+                  {w.enabled?.colors !== false && (
+                    <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: w.colorB }} />
+                  )}
+                </div>
+                {w.description && (
+                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">{w.description}</p>
+                )}
+                {/* Enabled badges */}
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {[
+                    { key: 'colors', label: '🎨' },
+                    { key: 'params', label: '⚙' },
+                  ].map(({ key, label }) => {
+                    const on = w.enabled?.[key] !== false
+                    return (
+                      <span key={key} className={cn(
+                        'px-1 py-0.5 rounded text-[9px] border',
+                        on ? 'bg-[#0d2035] border-[#50cfff]/30 text-[#50cfff]' : 'bg-[#0a1628] border-[#1a2a3a] text-slate-600 line-through'
+                      )}>
+                        {label} {key}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => onEdit(w)} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-[#50cfff] transition-all">
+                  <Pencil size={11} />
+                </button>
+                <button onClick={() => onDelete(w.id)} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-red-400 transition-all">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Section toggle switch ────────────────────────────────────────────────────
+
+function SectionToggle({ label, enabled, onChange }) {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      className="flex items-center gap-2 group w-full"
+    >
+      <span className={cn(
+        'text-[10px] font-semibold uppercase tracking-widest transition-colors flex-1 text-left',
+        enabled ? 'text-slate-300' : 'text-slate-600'
+      )}>
+        {label}
+      </span>
+      {/* pill toggle */}
+      <span className={cn(
+        'relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors',
+        enabled ? 'bg-[#50cfff] border-[#50cfff]' : 'bg-[#1e2d3d] border-[#2a3a4a]'
+      )}>
+        <span className={cn(
+          'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
+          enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+        )} />
+      </span>
+      <span className={cn('text-[9px] font-bold', enabled ? 'text-[#50cfff]' : 'text-slate-600')}>
+        {enabled ? 'ON' : 'OFF'}
+      </span>
+    </button>
+  )
+}
+
+// ─── Dictionary Word Editor ───────────────────────────────────────────────────
+
+function DictWordEditor({ entry, onSave, onCancel }) {
+  const isNew = !entry
+  const [form, setForm] = useState({
+    word:        entry?.word        ?? '',
+    description: entry?.description ?? '',
+    tags:        entry?.tags?.join(', ') ?? '',
+    params:      entry?.params      ?? { ...DEFAULT_PARAMS },
+    colorA:      entry?.colorA      ?? COLOR_PAIRS[0].surface,
+    colorB:      entry?.colorB      ?? COLOR_PAIRS[0].background,
+    enabled:     entry?.enabled     ?? { colors: true, params: true },
+  })
+  const [previewRects, setPreviewRects] = useState([])
+
+  useEffect(() => {
+    const seed = makeNewSeed()
+    const { rects } = generateState(form.params, seed)
+    setPreviewRects(rects)
+  }, [form.params]) // eslint-disable-line
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const toggleEnabled = (cat) =>
+    setForm(f => ({ ...f, enabled: { ...f.enabled, [cat]: !f.enabled[cat] } }))
+
+  const handleSubmit = () => {
+    if (!form.word.trim()) return
+    const tagsArr = form.tags.split(',').map(t => t.trim()).filter(Boolean)
+    onSave({
+      ...(entry ?? {}),
+      word:        form.word.trim(),
+      description: form.description.trim(),
+      tags:        tagsArr,
+      params:      form.params,
+      colorA:      form.colorA,
+      colorB:      form.colorB,
+      enabled:     form.enabled,
+    })
+  }
+
+  return (
+    <div className="p-3 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-white">{isNew ? 'Add Word' : 'Edit Word'}</span>
+        <button onClick={onCancel} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-slate-200 transition-all">
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* Word */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Word</label>
+        <input
+          autoFocus
+          type="text"
+          value={form.word}
+          onChange={e => set('word', e.target.value)}
+          placeholder="e.g. Growth"
+          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+        />
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Description</label>
+        <input
+          type="text"
+          value={form.description}
+          onChange={e => set('description', e.target.value)}
+          placeholder="Short label for users"
+          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+        />
+      </div>
+
+      {/* Tags */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Tags <span className="normal-case font-normal text-slate-600">(comma-separated)</span></label>
+        <input
+          type="text"
+          value={form.tags}
+          onChange={e => set('tags', e.target.value)}
+          placeholder="ascending, dynamic"
+          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+        />
+      </div>
+
+      {/* Color section — toggleable */}
+      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.colors ? 'border-[#1e2d3d]' : 'border-[#1a2a3a]')}>
+        <SectionToggle label="Colors" enabled={form.enabled.colors} onChange={() => toggleEnabled('colors')} />
+        <div className={cn('transition-opacity', form.enabled.colors ? 'opacity-100' : 'opacity-30 pointer-events-none')}>
+          <div className="grid grid-cols-3 gap-1">
+            {COLOR_PAIRS.slice(0, 9).map(pair => {
+              const active = form.colorA === pair.surface && form.colorB === pair.background
+              return (
+                <button
+                  key={pair.id}
+                  onClick={() => { set('colorA', pair.surface); set('colorB', pair.background) }}
+                  title={pair.label}
+                  className={cn(
+                    'flex gap-0.5 p-1 rounded border transition-all',
+                    active ? 'border-[#50cfff]' : 'border-[#1e2d3d] hover:border-[#3a4a5a]'
+                  )}
+                >
+                  <span className="flex-1 h-4 rounded-sm border border-white/10" style={{ backgroundColor: pair.surface }} />
+                  <span className="flex-1 h-4 rounded-sm border border-white/10" style={{ backgroundColor: pair.background }} />
+              </button>
+            )
+          })}
+          </div>
+        </div>
+      </div>
+
+      {/* Pattern preview */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Pattern Preview</label>
+        <div className="rounded-md overflow-hidden border border-[#1e2d3d]" style={{ aspectRatio: '1', background: form.colorB }}>
+          {previewRects.length > 0 && (
+            <PatternSVG
+              rects={previewRects}
+              colorA={form.colorA}
+              colorB={form.colorB}
+              style={{ width: '100%', height: '100%' }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Parameters section — toggleable */}
+      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.params ? 'border-[#1e2d3d]' : 'border-[#1a2a3a]')}>
+        <SectionToggle label="Parameters" enabled={form.enabled.params} onChange={() => toggleEnabled('params')} />
+        <div className={cn('transition-opacity', form.enabled.params ? 'opacity-100' : 'opacity-30 pointer-events-none')}>
+          <ParameterPanel
+            params={form.params}
+            colorA={form.colorA}
+            colorB={form.colorB}
+            onParamsChange={p => set('params', p)}
+            onColorAChange={c => set('colorA', c)}
+            onColorBChange={c => set('colorB', c)}
+          />
+        </div>
+      </div>
+
+      {/* Save */}
+      <Button
+        className="w-full gap-2 text-xs"
+        disabled={!form.word.trim()}
+        onClick={handleSubmit}
+      >
+        {isNew ? 'Add Word' : 'Save Changes'}
+      </Button>
     </div>
   )
 }
