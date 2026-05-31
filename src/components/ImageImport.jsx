@@ -44,7 +44,7 @@ function Toggle({ label, value, onChange }) {
           value ? 'left-[18px]' : 'left-0.5'
         )} />
       </button>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-footnote text-muted-foreground">{label}</span>
     </label>
   )
 }
@@ -130,7 +130,7 @@ export function ImageImport({ onApply }) {
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
         <Upload size={20} className="mx-auto mb-2 text-muted-foreground" />
-        <p className="text-xs text-muted-foreground font-medium">
+        <p className="text-footnote text-muted-foreground font-medium">
           {previewUrl ? 'Replace image' : 'Drop image or click to browse'}
         </p>
         <p className="text-[10px] text-muted-foreground/60 mt-1">PNG · JPG · WebP · any size</p>
@@ -171,8 +171,8 @@ export function ImageImport({ onApply }) {
           {/* Threshold slider */}
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-xs font-semibold text-foreground">Threshold</span>
-              <span className="text-xs font-mono text-primary">{threshold}</span>
+              <span className="text-footnote font-semibold text-foreground">Threshold</span>
+              <span className="text-footnote font-mono text-primary">{threshold}</span>
             </div>
             <input
               type="range" min={1} max={254} step={1}
@@ -222,7 +222,7 @@ export function ImageImport({ onApply }) {
 
           {/* Apply */}
           <Button
-            className="w-full gap-2 text-xs"
+            className="w-full gap-2 text-footnote"
             disabled={!hasContent}
             onClick={() => onApply({
               blocks: result.blocks,

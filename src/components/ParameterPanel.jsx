@@ -2,6 +2,31 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, BRAND_PALETTE, COLOR_PAIRS } from '@/utils/gridUtils'
 
+// ─── Switch (toggle) ─────────────────────────────────────────────────────────
+
+function Switch({ checked, onToggle }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={onToggle}
+      className={cn(
+        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        checked
+          ? 'bg-white border-neutral-200 dark:border-neutral-800'
+          : 'bg-neutral-300 dark:bg-neutral-700 border-transparent'
+      )}
+    >
+      <span
+        className={cn(
+          'pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full shadow-sm transition duration-200 ease-in-out',
+          checked ? 'translate-x-4 bg-neutral-950' : 'translate-x-0.5 bg-white'
+        )}
+      />
+    </button>
+  )
+}
+
 // ─── Segmented button group ───────────────────────────────────────────────────
 
 function SegGroup({ options, value, onChange, disabled = false, cols }) {
@@ -16,7 +41,7 @@ function SegGroup({ options, value, onChange, disabled = false, cols }) {
           disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'flex flex-col items-center justify-center min-w-[40px] h-11 md:h-9 px-2 rounded-md text-xs font-semibold transition-all border',
+            'flex flex-col items-center justify-center min-w-[40px] h-11 md:h-9 px-2 rounded-md text-footnote font-semibold transition-all border',
             value === opt.value
               ? 'bg-primary text-primary-foreground border-primary shadow-sm'
               : 'bg-muted text-muted-foreground border-border hover:border-ring hover:text-foreground',
@@ -25,7 +50,7 @@ function SegGroup({ options, value, onChange, disabled = false, cols }) {
         >
           <span>{opt.label}</span>
           {opt.sub && (
-            <span className={cn('text-[9px] mt-px font-normal', value === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>
+            <span className={cn('text-caption-2 mt-px font-normal', value === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>
               {opt.sub}
             </span>
           )}
@@ -49,7 +74,7 @@ function ParamSlider({ value, min, max, step = 1, onChange, formatLabel }) {
         onChange={e => onChange(Number(e.target.value))}
         className="flex-1 h-4 md:h-1.5 accent-primary cursor-pointer touch-manipulation"
       />
-      <span className="text-xs font-mono text-primary w-10 text-right shrink-0">
+      <span className="text-footnote font-mono text-primary w-10 text-right shrink-0">
         {formatLabel ? formatLabel(value) : value}
       </span>
     </div>
@@ -76,7 +101,7 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
             <button
               onClick={() => setOpenGroup(isOpen && !hasActive ? null : group)}
               className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all',
+                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-footnote transition-all',
                 hasActive ? 'bg-accent border border-primary/40 text-foreground' : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -87,7 +112,7 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
                   <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: colorB }} />
                 </span>
               )}
-              <span className="text-[10px] opacity-40">{isOpen ? '▲' : '▼'}</span>
+              <span className="text-caption-2 opacity-40">{isOpen ? '▲' : '▼'}</span>
             </button>
 
             {isOpen && (
@@ -97,7 +122,7 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
                     key={pair.id}
                     onClick={() => onSelectPair(pair)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all border',
+                      'w-full flex items-center gap-2 px-2 py-1.5 rounded text-footnote transition-all border',
                       activePair?.id === pair.id
                         ? 'border-primary bg-accent text-foreground'
                         : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
@@ -124,7 +149,7 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
 function SwatchRow({ family, colors, activeColor, onPick }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-muted-foreground/60 w-14 flex-shrink-0 text-right">{family}</span>
+      <span className="text-caption-2 text-muted-foreground/60 w-14 flex-shrink-0 text-right">{family}</span>
       <div className="flex gap-1 flex-wrap">
         {colors.map(hex => (
           <button
@@ -134,7 +159,7 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
             className={cn(
               'w-6 h-6 md:w-5 md:h-5 rounded-sm border transition-all hover:scale-110',
               activeColor === hex
-                ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary))]'
+                ? 'border-primary shadow-[0_0_0_1px_var(--primary)]'
                 : 'border-foreground/10 hover:border-foreground/30'
             )}
             style={{ backgroundColor: hex }}
@@ -185,20 +210,10 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         label="2D Overlap Area"
         hint="Allow blocks to physically overlap in 2D space"
       >
-        <button
-          onClick={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
-          className={cn(
-            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-            overlapChance === 1 ? 'bg-primary' : 'bg-muted'
-          )}
-        >
-          <span
-            className={cn(
-              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
-              overlapChance === 1 ? 'translate-x-4' : 'translate-x-0'
-            )}
-          />
-        </button>
+        <Switch
+          checked={overlapChance === 1}
+          onToggle={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
+        />
       </ParamRow>
 
       {/* ── Connection Options ────────────────────────────────────────── */}
@@ -244,7 +259,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
 
       {/* ── Start Block ────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">Start Block</h4>
+        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">Start Block</h4>
         <ParamRow label="Start X" hint="X-coordinate for the Bottom-Left corner">
           <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
         </ParamRow>
@@ -267,7 +282,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
 
       {/* ── Middle Blocks ────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">Middle Blocks</h4>
+        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">Middle Blocks</h4>
         <ParamRow label="Min Width" hint="Minimum width of middle blocks (0 = Random)">
           <ParamSlider value={params.midMinW ?? 0} min={0} max={14} onChange={v => set('midMinW', v)} />
         </ParamRow>
@@ -287,7 +302,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
 
       {/* ── End Block ──────────────────────────────────────────────────── */}
       <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">End Block</h4>
+        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">End Block</h4>
         <ParamRow label="End X" hint="X-coordinate for the Top-Right corner">
           <ParamSlider value={params.endX ?? 15} min={0} max={15} onChange={v => set('endX', v)} />
         </ParamRow>
@@ -329,7 +344,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
               key={slot}
               onClick={() => setActiveSlot(slot)}
               className={cn(
-                'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-all',
+                'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-footnote font-medium border transition-all',
                 activeSlot === slot
                   ? 'border-primary bg-accent text-foreground'
                   : 'border-border bg-muted text-muted-foreground hover:border-ring'
@@ -337,7 +352,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
             >
               <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-foreground/20" style={{ backgroundColor: color }} />
               <span className="truncate">{label}</span>
-              <span className="ml-auto font-mono text-[9px] opacity-50 shrink-0">{color}</span>
+              <span className="ml-auto font-mono text-caption-2 opacity-50 shrink-0">{color}</span>
             </button>
           ))}
         </div>
@@ -363,9 +378,9 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
 function ParamRow({ label, hint, children }) {
   return (
     <div className="space-y-1.5 min-w-0">
-      <div className="flex items-baseline justify-between gap-2 min-w-0">
-        <span className="text-xs font-semibold text-foreground shrink-0">{label}</span>
-        {hint && <span className="text-[10px] text-muted-foreground text-right leading-tight min-w-0">{hint}</span>}
+      <div className="min-w-0">
+        <span className="text-footnote font-semibold text-foreground">{label}</span>
+        {hint && <p className="text-caption-2 text-muted-foreground leading-snug mt-0.5">{hint}</p>}
       </div>
       {children}
     </div>

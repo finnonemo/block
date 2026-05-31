@@ -22,7 +22,7 @@ export function ColorPicker({ colorA, colorB, onChangeA, onChangeB }) {
             key={slot}
             onClick={() => setActive(slot)}
             className={cn(
-              'flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border',
+              'flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-footnote font-medium transition-all border',
               active === slot
                 ? 'border-primary bg-accent text-foreground shadow-[0_0_0_1px_hsl(var(--primary))]'
                 : 'border-border bg-muted text-muted-foreground hover:border-ring'

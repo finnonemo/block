@@ -60,12 +60,12 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
           </div>
           <div>
             <span className="font-semibold text-sm text-foreground">Pattern Gallery</span>
-            <span className="ml-2 text-xs text-muted-foreground">Finnomena Brand</span>
+            <span className="ml-2 text-caption-1 text-muted-foreground">Finnomena Brand</span>
           </div>
         </div>
         <button
           onClick={onSwitchMode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border hover:border-primary/40 text-xs text-muted-foreground hover:text-primary transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border hover:border-primary/40 text-footnote text-muted-foreground hover:text-primary transition-all"
         >
           <Settings2 size={12} />
           Admin
@@ -82,7 +82,7 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
             key={id}
             onClick={() => { setMode(id); setSearch('') }}
             className={cn(
-              'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all',
+              'px-4 py-2.5 text-footnote font-semibold border-b-2 transition-all',
               mode === id
                 ? 'text-primary border-primary'
                 : 'text-muted-foreground border-transparent hover:text-foreground'
@@ -129,13 +129,13 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                           {w.word}
                         </p>
                         {w.description && (
-                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{w.description}</p>
+                          <p className="text-caption-2 text-muted-foreground mt-0.5 truncate">{w.description}</p>
                         )}
                       </div>
                       {w.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 shrink-0">
                           {w.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="px-1.5 py-0.5 rounded bg-muted border border-border text-[9px] text-muted-foreground">
+                             <span key={tag} className="px-1.5 py-0.5 rounded bg-muted border border-border text-caption-2 text-muted-foreground">
                               {tag}
                             </span>
                           ))}
@@ -193,9 +193,9 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                         <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                           {cat.icon} {cat.label}
                         </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{cat.description}</p>
+                         <p className="text-caption-2 text-muted-foreground mt-0.5">{cat.description}</p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-semibold text-muted-foreground mt-0.5">
+                       <span className="shrink-0 text-caption-2 font-semibold text-muted-foreground mt-0.5">
                         {templates.length} pattern{templates.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -227,14 +227,14 @@ function TemplatePage({ categoryId, gallery, onBack, onSelect }) {
       <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-footnote"
         >
           <ArrowLeft size={14} />
           Categories
         </button>
         <span className="text-muted-foreground">/</span>
         <span className="text-sm font-semibold text-foreground">{cat?.icon} {cat?.label}</span>
-        <span className="text-[11px] text-muted-foreground ml-auto">{templates.length} patterns</span>
+        <span className="text-caption-2 text-muted-foreground ml-auto">{templates.length} patterns</span>
       </header>
 
       <div className="flex-1 p-6">
@@ -291,13 +291,13 @@ function TemplateCard({ template, onSelect }) {
       </div>
 
       <div className="p-3">
-        <p className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors truncate">
+        <p className="text-footnote font-semibold text-slate-200 group-hover:text-white transition-colors truncate">
           {template.name}
         </p>
         <div className="flex items-center gap-1.5 mt-1.5">
           <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorA }} />
           <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorB }} />
-          <span className="text-[9px] text-muted-foreground ml-auto font-mono">{colorA}</span>
+           <span className="text-caption-2 text-muted-foreground ml-auto font-mono">{colorA}</span>
         </div>
       </div>
     </button>
@@ -318,6 +318,58 @@ function EditorPage({ template, onBack }) {
   const [blocks, setBlocks]       = useState(Array(COLS * ROWS).fill(1))
   const [copyStatus, setCopyStatus] = useState('idle')
   const [showColorPicker, setShowColorPicker] = useState(false)
+
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('fnm-sidebar-width')
+    return saved ? Math.min(560, Math.max(320, parseInt(saved, 10))) : 320
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const asideRef = useRef(null)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    setIsMobile(media.matches)
+    const listener = (e) => setIsMobile(e.matches)
+    media.addEventListener('change', listener)
+    return () => media.removeEventListener('change', listener)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('fnm-sidebar-width', panelWidth)
+  }, [panelWidth])
+
+  const startResizing = useCallback((e) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e) => {
+      if (!asideRef.current) return
+      const rect = asideRef.current.getBoundingClientRect()
+      const newWidth = Math.min(560, Math.max(320, e.clientX - rect.left))
+      setPanelWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
 
   // Init canvas from template
   useEffect(() => {
@@ -382,7 +434,7 @@ function EditorPage({ template, onBack }) {
       <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-footnote"
         >
           <ArrowLeft size={14} />
           Back
@@ -404,12 +456,16 @@ function EditorPage({ template, onBack }) {
         </main>
 
         {/* Right panel */}
-        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-card border-t md:border-t-0 md:border-r border-border flex flex-col max-h-[55vh] md:max-h-none md:overflow-hidden">
+        <aside
+          ref={asideRef}
+          style={{ '--sidebar-width': `${panelWidth}px` }}
+          className="order-2 md:order-1 sidebar-resizable md:shrink-0 bg-card border-t md:border-t-0 md:border-r border-border flex flex-col max-h-[55vh] md:max-h-none md:overflow-hidden relative"
+        >
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
 
             {/* Color pairs */}
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Color Scheme</p>
+               <p className="text-caption-2 font-semibold uppercase tracking-widest text-muted-foreground mb-3">Color Scheme</p>
               <ColorPairGrid
                 colorA={colorA}
                 colorB={colorB}
@@ -421,10 +477,10 @@ function EditorPage({ template, onBack }) {
             <div>
               <button
                 onClick={() => setShowColorPicker(v => !v)}
-                className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
+                 className="text-caption-2 font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
               >
                 Custom Colors
-                <span className="text-[9px]">{showColorPicker ? '▲' : '▼'}</span>
+                 <span className="text-caption-2">{showColorPicker ? '▲' : '▼'}</span>
               </button>
               {showColorPicker && (
                 <div className="mt-2">
@@ -442,7 +498,7 @@ function EditorPage({ template, onBack }) {
 
           {/* Actions */}
           <div className="shrink-0 border-t border-border p-4 space-y-2 bg-card">
-            <Button className="w-full gap-2 text-xs" onClick={handleGenerate}>
+            <Button className="w-full gap-2 text-footnote" onClick={handleGenerate}>
               <RefreshCw size={13} />
               Generate Variation
             </Button>
@@ -450,11 +506,8 @@ function EditorPage({ template, onBack }) {
               <Button
                 onClick={handleCopy}
                 disabled={rectangles.length === 0}
-                variant="secondary"
-                className={cn(
-                  'flex-1 gap-2 text-xs',
-                  copyStatus === 'success' && 'bg-emerald-500 hover:bg-emerald-500 text-white border-emerald-500'
-                )}
+                variant={copyStatus === 'success' ? 'default' : 'secondary'}
+                className="flex-1 gap-2 text-footnote"
               >
                 {copyStatus === 'success'
                   ? <><Check size={13} /> Copied!</>
@@ -464,13 +517,21 @@ function EditorPage({ template, onBack }) {
                 variant="secondary"
                 disabled={rectangles.length === 0}
                 onClick={handleDownload}
-                className="shrink-0 gap-1.5 text-xs"
+                className="shrink-0 gap-1.5 text-footnote"
                 title="Download SVG"
               >
                 <Download size={13} />
               </Button>
             </div>
           </div>
+          {/* Resize Handle */}
+          <div
+            onMouseDown={startResizing}
+            className={cn("sidebar-resizer", isResizing && "is-resizing")}
+          >
+            <div className="sidebar-resizer-line" />
+          </div>
+
         </aside>
       </div>
     </div>
@@ -504,7 +565,7 @@ function EditorCanvasArea({ blocks, rectangles, colorA, colorB }) {
         colorA={colorA}
         colorB={colorB}
       />
-      <p className="text-xs text-muted-foreground shrink-0">1920 × 1920 px export</p>
+      <p className="text-caption-1 text-muted-foreground shrink-0">1920 × 1920 px export</p>
     </div>
   )
 }
@@ -531,7 +592,7 @@ function ColorPairGrid({ colorA, colorB, onSelect }) {
             <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
             <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
           </div>
-          <span className="text-[8px] text-muted-foreground leading-none text-center line-clamp-1 w-full">{pair.label}</span>
+           <span className="text-caption-2 text-muted-foreground leading-none text-center line-clamp-1 w-full">{pair.label}</span>
         </button>
       ))}
     </div>
@@ -560,7 +621,7 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
             key={s}
             onClick={() => setSlot(s)}
             className={cn(
-              'flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-xs transition-all',
+              'flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-footnote transition-all',
               slot === s ? 'border-primary bg-accent text-foreground' : 'border-border bg-muted text-muted-foreground'
             )}
           >
@@ -572,7 +633,7 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
       <div className="space-y-1">
         {Object.entries(BRAND).map(([fam, colors]) => (
           <div key={fam} className="flex items-center gap-1.5">
-            <span className="text-[9px] text-muted-foreground/60 w-12 text-right shrink-0">{fam}</span>
+             <span className="text-caption-2 text-muted-foreground/60 w-12 text-right shrink-0">{fam}</span>
             <div className="flex gap-1">
               {colors.map(hex => (
                 <button
