@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, BRAND_PALETTE, COLOR_PAIRS } from '@/utils/gridUtils'
 
@@ -196,6 +197,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
   }
 
   const [activeSlot, setActiveSlot] = useState('A')
+  const [expandedGroup, setExpandedGroup] = useState('pattern')
 
   function pickColor(hex) {
     if (activeSlot === 'A') onColorAChange(hex)
@@ -203,184 +205,226 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      {/* ── 2D Overlap Area ───────────────────────────────────────────── */}
-      <ParamRow
-        label="2D Overlap Area"
-        hint="Allow blocks to physically overlap in 2D space"
-      >
-        <Switch
-          checked={overlapChance === 1}
-          onToggle={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
-        />
-      </ParamRow>
+      {/* ─── ACCORDION 1: PATTERN LOGIC ─── */}
+      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpandedGroup(expandedGroup === 'pattern' ? null : 'pattern')}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted/80 text-footnote font-bold tracking-widest text-primary uppercase transition-all select-none cursor-pointer"
+        >
+          <span>Pattern Logic</span>
+          <ChevronDown size={14} className={cn("transition-transform duration-200", expandedGroup === 'pattern' && "rotate-180")} />
+        </button>
+        {expandedGroup === 'pattern' && (
+          <div className="p-4 space-y-4 border-t border-border">
+            <ParamRow label="2D Overlap Area">
+              <Switch
+                checked={overlapChance === 1}
+                onToggle={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
+              />
+            </ParamRow>
 
-      {/* ── Connection Options ────────────────────────────────────────── */}
-      <ParamRow
-        label="Exact Corners"
-        hint="Exactly how many corner-to-corner connections to force on the canvas"
-      >
-        <ParamSlider
-          value={params.cornerAmount ?? 2}
-          min={0}
-          max={2}
-          onChange={v => set('cornerAmount', v)}
-        />
-      </ParamRow>
+            <ParamRow label="Exact Corners">
+              <ParamSlider
+                value={params.cornerAmount ?? 2}
+                min={0}
+                max={2}
+                onChange={v => set('cornerAmount', v)}
+              />
+            </ParamRow>
 
-      {/* ── Block Amount ────────────────────────────────────────────── */}
-      <ParamRow
-        label="Min Blocks"
-        hint="Minimum number of blocks to generate"
-      >
-        <ParamSlider
-          value={params.blockMin ?? 3}
-          min={3}
-          max={8}
-          onChange={v => set('blockMin', v)}
-        />
-      </ParamRow>
-      <ParamRow
-        label="Max Blocks"
-        hint="Maximum number of blocks to generate"
-      >
-        <ParamSlider
-          value={params.blockMax ?? 8}
-          min={3}
-          max={8}
-          onChange={v => set('blockMax', v)}
-        />
-      </ParamRow>
-
-
-
-
-
-      {/* ── Start Block ────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">Start Block</h4>
-        <ParamRow label="Start X" hint="X-coordinate for the Bottom-Left corner">
-          <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
-        </ParamRow>
-        <ParamRow label="Start Y" hint="Y-coordinate for the Bottom-Left corner">
-          <ParamSlider value={params.startY ?? 15} min={0} max={15} onChange={v => set('startY', v)} />
-        </ParamRow>
-        <ParamRow label="Min Width" hint="Minimum width of the first block">
-          <ParamSlider value={params.startMinW ?? 2} min={1} max={14} onChange={v => set('startMinW', v)} />
-        </ParamRow>
-        <ParamRow label="Max Width" hint="Maximum width of the first block">
-          <ParamSlider value={params.startMaxW ?? 4} min={1} max={14} onChange={v => set('startMaxW', v)} />
-        </ParamRow>
-        <ParamRow label="Min Height" hint="Minimum height of the first block">
-          <ParamSlider value={params.startMinH ?? 4} min={1} max={14} onChange={v => set('startMinH', v)} />
-        </ParamRow>
-        <ParamRow label="Max Height" hint="Maximum height of the first block">
-          <ParamSlider value={params.startMaxH ?? 8} min={1} max={14} onChange={v => set('startMaxH', v)} />
-        </ParamRow>
+            <ParamRow label="Min Blocks">
+              <ParamSlider
+                value={params.blockMin ?? 3}
+                min={3}
+                max={8}
+                onChange={v => set('blockMin', v)}
+              />
+            </ParamRow>
+            
+            <ParamRow label="Max Blocks">
+              <ParamSlider
+                value={params.blockMax ?? 8}
+                min={3}
+                max={8}
+                onChange={v => set('blockMax', v)}
+              />
+            </ParamRow>
+          </div>
+        )}
       </div>
 
-      {/* ── Middle Blocks ────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">Middle Blocks</h4>
-        <ParamRow label="Min Width" hint="Minimum width of middle blocks (0 = Random)">
-          <ParamSlider value={params.midMinW ?? 0} min={0} max={14} onChange={v => set('midMinW', v)} />
-        </ParamRow>
-        <ParamRow label="Max Width" hint="Maximum width of middle blocks (0 = Random)">
-          <ParamSlider value={params.midMaxW ?? 0} min={0} max={14} onChange={v => set('midMaxW', v)} />
-        </ParamRow>
-        <ParamRow label="Min Height" hint="Minimum height of middle blocks (0 = Random)">
-          <ParamSlider value={params.midMinH ?? 0} min={0} max={14} onChange={v => set('midMinH', v)} />
-        </ParamRow>
-        <ParamRow label="Max Height" hint="Maximum height of middle blocks (0 = Random)">
-          <ParamSlider value={params.midMaxH ?? 0} min={0} max={14} onChange={v => set('midMaxH', v)} />
-        </ParamRow>
-        <ParamRow label="Curve" hint="Growth curve (0 = steep, 50 = linear, 100 = late drop)">
-          <ParamSlider value={params.midCurve ?? 50} min={0} max={100} onChange={v => set('midCurve', v)} />
-        </ParamRow>
+      {/* ─── ACCORDION 2: START BLOCK ─── */}
+      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpandedGroup(expandedGroup === 'start' ? null : 'start')}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted/80 text-footnote font-bold tracking-widest text-primary uppercase transition-all select-none cursor-pointer"
+        >
+          <span>Start Block</span>
+          <ChevronDown size={14} className={cn("transition-transform duration-200", expandedGroup === 'start' && "rotate-180")} />
+        </button>
+        {expandedGroup === 'start' && (
+          <div className="p-4 space-y-4 border-t border-border">
+            <ParamRow label="Start X">
+              <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
+            </ParamRow>
+            <ParamRow label="Start Y">
+              <ParamSlider value={params.startY ?? 15} min={0} max={15} onChange={v => set('startY', v)} />
+            </ParamRow>
+            <ParamRow label="Min Width">
+              <ParamSlider value={params.startMinW ?? 2} min={1} max={14} onChange={v => set('startMinW', v)} />
+            </ParamRow>
+            <ParamRow label="Max Width">
+              <ParamSlider value={params.startMaxW ?? 4} min={1} max={14} onChange={v => set('startMaxW', v)} />
+            </ParamRow>
+            <ParamRow label="Min Height">
+              <ParamSlider value={params.startMinH ?? 4} min={1} max={14} onChange={v => set('startMinH', v)} />
+            </ParamRow>
+            <ParamRow label="Max Height">
+              <ParamSlider value={params.startMaxH ?? 8} min={1} max={14} onChange={v => set('startMaxH', v)} />
+            </ParamRow>
+          </div>
+        )}
       </div>
 
-      {/* ── End Block ──────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
-        <h4 className="text-caption-1 font-bold tracking-widest text-primary uppercase">End Block</h4>
-        <ParamRow label="End X" hint="X-coordinate for the Top-Right corner">
-          <ParamSlider value={params.endX ?? 15} min={0} max={15} onChange={v => set('endX', v)} />
-        </ParamRow>
-        <ParamRow label="End Y" hint="Y-coordinate for the Top-Right corner">
-          <ParamSlider value={params.endY ?? 5} min={0} max={15} onChange={v => set('endY', v)} />
-        </ParamRow>
-        <ParamRow label="Min Width" hint="Minimum width of the last block">
-          <ParamSlider value={params.endMinW ?? 6} min={1} max={14} onChange={v => set('endMinW', v)} />
-        </ParamRow>
-        <ParamRow label="Max Width" hint="Maximum width of the last block">
-          <ParamSlider value={params.endMaxW ?? 10} min={1} max={14} onChange={v => set('endMaxW', v)} />
-        </ParamRow>
-        <ParamRow label="Min Height" hint="Minimum height of the last block">
-          <ParamSlider value={params.endMinH ?? 4} min={1} max={14} onChange={v => set('endMinH', v)} />
-        </ParamRow>
-        <ParamRow label="Max Height" hint="Maximum height of the last block">
-          <ParamSlider value={params.endMaxH ?? 8} min={1} max={14} onChange={v => set('endMaxH', v)} />
-        </ParamRow>
+      {/* ─── ACCORDION 3: MIDDLE BLOCKS ─── */}
+      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpandedGroup(expandedGroup === 'middle' ? null : 'middle')}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted/80 text-footnote font-bold tracking-widest text-primary uppercase transition-all select-none cursor-pointer"
+        >
+          <span>Middle Blocks</span>
+          <ChevronDown size={14} className={cn("transition-transform duration-200", expandedGroup === 'middle' && "rotate-180")} />
+        </button>
+        {expandedGroup === 'middle' && (
+          <div className="p-4 space-y-4 border-t border-border">
+            <ParamRow label="Min Width">
+              <ParamSlider value={params.midMinW ?? 0} min={0} max={14} onChange={v => set('midMinW', v)} />
+            </ParamRow>
+            <ParamRow label="Max Width">
+              <ParamSlider value={params.midMaxW ?? 0} min={0} max={14} onChange={v => set('midMaxW', v)} />
+            </ParamRow>
+            <ParamRow label="Min Height">
+              <ParamSlider value={params.midMinH ?? 0} min={0} max={14} onChange={v => set('midMinH', v)} />
+            </ParamRow>
+            <ParamRow label="Max Height">
+              <ParamSlider value={params.midMaxH ?? 0} min={0} max={14} onChange={v => set('midMaxH', v)} />
+            </ParamRow>
+            <ParamRow label="Curve">
+              <ParamSlider value={params.midCurve ?? 50} min={0} max={100} onChange={v => set('midCurve', v)} />
+            </ParamRow>
+          </div>
+        )}
       </div>
 
-      {/* ── Color Palette ──────────────────────────────────────────── */}
-      <ParamRow label="Color Pairs" hint="Preset brand pairs">
-        <ColorPairPicker
-          colorA={colorA}
-          colorB={colorB}
-          onSelectPair={pair => { onColorAChange(pair.surface); onColorBChange(pair.background) }}
-        />
-      </ParamRow>
+      {/* ─── ACCORDION 4: END BLOCK ─── */}
+      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpandedGroup(expandedGroup === 'end' ? null : 'end')}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted/80 text-footnote font-bold tracking-widest text-primary uppercase transition-all select-none cursor-pointer"
+        >
+          <span>End Block</span>
+          <ChevronDown size={14} className={cn("transition-transform duration-200", expandedGroup === 'end' && "rotate-180")} />
+        </button>
+        {expandedGroup === 'end' && (
+          <div className="p-4 space-y-4 border-t border-border">
+            <ParamRow label="End X">
+              <ParamSlider value={params.endX ?? 15} min={0} max={15} onChange={v => set('endX', v)} />
+            </ParamRow>
+            <ParamRow label="End Y">
+              <ParamSlider value={params.endY ?? 5} min={0} max={15} onChange={v => set('endY', v)} />
+            </ParamRow>
+            <ParamRow label="Min Width">
+              <ParamSlider value={params.endMinW ?? 6} min={1} max={14} onChange={v => set('endMinW', v)} />
+            </ParamRow>
+            <ParamRow label="Max Width">
+              <ParamSlider value={params.endMaxW ?? 10} min={1} max={14} onChange={v => set('endMaxW', v)} />
+            </ParamRow>
+            <ParamRow label="Min Height">
+              <ParamSlider value={params.endMinH ?? 4} min={1} max={14} onChange={v => set('endMinH', v)} />
+            </ParamRow>
+            <ParamRow label="Max Height">
+              <ParamSlider value={params.endMaxH ?? 8} min={1} max={14} onChange={v => set('endMaxH', v)} />
+            </ParamRow>
+          </div>
+        )}
+      </div>
 
-      {/* ── Custom Colors ──────────────────────────────────────────── */}
-      <ParamRow label="Custom Colors" hint="Pick individual colors">
-        {/* Active color slots */}
-        <div className="flex gap-2 mb-3">
-          {[
-            { slot: 'A', label: 'Surface',    color: colorA },
-            { slot: 'B', label: 'Background', color: colorB },
-          ].map(({ slot, label, color }) => (
-            <button
-              key={slot}
-              onClick={() => setActiveSlot(slot)}
-              className={cn(
-                'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-footnote font-medium border transition-all',
-                activeSlot === slot
-                  ? 'border-primary bg-accent text-foreground'
-                  : 'border-border bg-muted text-muted-foreground hover:border-ring'
-              )}
-            >
-              <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-foreground/20" style={{ backgroundColor: color }} />
-              <span className="truncate">{label}</span>
-              <span className="ml-auto font-mono text-caption-2 opacity-50 shrink-0">{color}</span>
-            </button>
-          ))}
-        </div>
+      {/* ─── ACCORDION 5: COLOR PALETTE ─── */}
+      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpandedGroup(expandedGroup === 'color' ? null : 'color')}
+          className="w-full flex items-center justify-between px-4 py-3 bg-muted/50 hover:bg-muted/80 text-footnote font-bold tracking-widest text-primary uppercase transition-all select-none cursor-pointer"
+        >
+          <span>Color Palette</span>
+          <ChevronDown size={14} className={cn("transition-transform duration-200", expandedGroup === 'color' && "rotate-180")} />
+        </button>
+        {expandedGroup === 'color' && (
+          <div className="p-4 space-y-4 border-t border-border">
+            <ParamRow label="Color Pairs">
+              <ColorPairPicker
+                colorA={colorA}
+                colorB={colorB}
+                onSelectPair={pair => { onColorAChange(pair.surface); onColorBChange(pair.background) }}
+              />
+            </ParamRow>
 
-        {/* Brand swatches */}
-        <div className="space-y-1">
-          {Object.entries(BRAND_PALETTE).map(([family, colors]) => (
-            <SwatchRow
-              key={family}
-              family={family}
-              colors={colors}
-              activeColor={activeSlot === 'A' ? colorA : colorB}
-              onPick={pickColor}
-            />
-          ))}
-        </div>
-      </ParamRow>
+            <ParamRow label="Custom Colors">
+              {/* Active color slots */}
+              <div className="flex gap-2 mb-3">
+                {[
+                  { slot: 'A', label: 'Surface',    color: colorA },
+                  { slot: 'B', label: 'Background', color: colorB },
+                ].map(({ slot, label, color }) => (
+                  <button
+                    key={slot}
+                    onClick={() => setActiveSlot(slot)}
+                    className={cn(
+                      'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-footnote font-medium border transition-all',
+                      activeSlot === slot
+                        ? 'border-primary bg-accent text-foreground'
+                        : 'border-border bg-muted text-muted-foreground hover:border-ring'
+                    )}
+                  >
+                    <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-foreground/20" style={{ backgroundColor: color }} />
+                    <span className="truncate">{label}</span>
+                    <span className="ml-auto font-mono text-caption-2 opacity-50 shrink-0">{color}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Brand swatches */}
+              <div className="space-y-1">
+                {Object.entries(BRAND_PALETTE).map(([family, colors]) => (
+                  <SwatchRow
+                    key={family}
+                    family={family}
+                    colors={colors}
+                    activeColor={activeSlot === 'A' ? colorA : colorB}
+                    onPick={pickColor}
+                  />
+                ))}
+              </div>
+            </ParamRow>
+          </div>
+        )}
+      </div>
 
     </div>
   )
 }
 
-function ParamRow({ label, hint, children }) {
+function ParamRow({ label, children }) {
   return (
     <div className="space-y-1.5 min-w-0">
       <div className="min-w-0">
         <span className="text-footnote font-semibold text-foreground">{label}</span>
-        {hint && <p className="text-caption-2 text-muted-foreground leading-snug mt-0.5">{hint}</p>}
       </div>
       {children}
     </div>
