@@ -36,7 +36,7 @@ function Toggle({ label, value, onChange }) {
         onClick={() => onChange(!value)}
         className={cn(
           'relative w-8 h-4 rounded-full transition-colors shrink-0',
-          value ? 'bg-[#50cfff]' : 'bg-[#1e2d3d]'
+          value ? 'bg-primary' : 'bg-muted'
         )}
       >
         <span className={cn(
@@ -44,7 +44,7 @@ function Toggle({ label, value, onChange }) {
           value ? 'left-[18px]' : 'left-0.5'
         )} />
       </button>
-      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </label>
   )
 }
@@ -118,8 +118,8 @@ export function ImageImport({ onApply }) {
         className={cn(
           'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all',
           isDragging
-            ? 'border-[#50cfff] bg-[#0d2035]'
-            : 'border-[#1e2d3d] hover:border-[#3a4a5a] hover:bg-[#0c1a28]'
+            ? 'border-primary bg-accent'
+            : 'border-border hover:border-ring hover:bg-muted'
         )}
       >
         <input
@@ -129,11 +129,11 @@ export function ImageImport({ onApply }) {
           className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
-        <Upload size={20} className="mx-auto mb-2 text-slate-500" />
-        <p className="text-xs text-slate-400 font-medium">
+        <Upload size={20} className="mx-auto mb-2 text-muted-foreground" />
+        <p className="text-xs text-muted-foreground font-medium">
           {previewUrl ? 'Replace image' : 'Drop image or click to browse'}
         </p>
-        <p className="text-[10px] text-slate-600 mt-1">PNG · JPG · WebP · any size</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">PNG · JPG · WebP · any size</p>
       </div>
 
       {error && <p className="text-[10px] text-red-400">{error}</p>}
@@ -143,10 +143,10 @@ export function ImageImport({ onApply }) {
           {/* Original + pixelated side-by-side */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600 mb-1.5">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1.5">
                 Original
               </p>
-              <div className="aspect-square rounded-md overflow-hidden bg-[#0c1926] border border-[#1e2d3d]">
+              <div className="aspect-square rounded-md overflow-hidden bg-muted border border-border">
                 <img
                   src={previewUrl}
                   alt="uploaded"
@@ -155,10 +155,10 @@ export function ImageImport({ onApply }) {
               </div>
             </div>
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600 mb-1.5">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1.5">
                 Grid 16×16
               </p>
-              <div className="aspect-square rounded-md overflow-hidden border border-[#1e2d3d]">
+              <div className="aspect-square rounded-md overflow-hidden border border-border">
                 <PixelGridPreview
                   blocks={result.blocks}
                   colorA={result.colorA}
@@ -171,17 +171,16 @@ export function ImageImport({ onApply }) {
           {/* Threshold slider */}
           <div>
             <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-xs font-semibold text-slate-300">Threshold</span>
-              <span className="text-xs font-mono text-[#50cfff]">{threshold}</span>
+              <span className="text-xs font-semibold text-foreground">Threshold</span>
+              <span className="text-xs font-mono text-primary">{threshold}</span>
             </div>
             <input
               type="range" min={1} max={254} step={1}
               value={threshold}
               onChange={e => setThreshold(Number(e.target.value))}
               className="w-full"
-              style={{ accentColor: '#50cfff' }}
             />
-            <div className="flex justify-between text-[9px] text-slate-600 mt-0.5">
+            <div className="flex justify-between text-[9px] text-muted-foreground/60 mt-0.5">
               <span>Darker → active</span>
               <span>Lighter → active</span>
             </div>
@@ -191,7 +190,7 @@ export function ImageImport({ onApply }) {
           <Toggle label="Invert (swap foreground / background)" value={invert} onChange={setInvert} />
 
           {/* Active cell count */}
-          <div className="flex justify-between text-[10px] text-slate-500">
+          <div className="flex justify-between text-[10px] text-muted-foreground">
             <span>Active cells</span>
             <span className={cn('font-mono font-semibold',
               activeFg > 0 ? 'text-emerald-400' : 'text-amber-400')}>
@@ -201,7 +200,7 @@ export function ImageImport({ onApply }) {
 
           {/* Detected colors */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Detected Colors
             </p>
             <div className="grid grid-cols-2 gap-2 mb-2">
@@ -209,11 +208,11 @@ export function ImageImport({ onApply }) {
                 { label: 'Surface (A)', color: result.colorA },
                 { label: 'Background (B)', color: result.colorB },
               ].map(({ label, color }) => (
-                <div key={label} className="flex items-center gap-1.5 bg-[#0c1926] border border-[#1e2d3d] rounded px-2 py-1.5">
-                  <span className="w-4 h-4 rounded-sm border border-white/20 shrink-0" style={{ backgroundColor: color }} />
+                <div key={label} className="flex items-center gap-1.5 bg-muted border border-border rounded px-2 py-1.5">
+                  <span className="w-4 h-4 rounded-sm border border-foreground/20 shrink-0" style={{ backgroundColor: color }} />
                   <div className="min-w-0">
-                    <p className="text-[8px] text-slate-600 leading-none mb-0.5">{label}</p>
-                    <p className="text-[9px] font-mono text-slate-300 truncate">{color}</p>
+                    <p className="text-[8px] text-muted-foreground/60 leading-none mb-0.5">{label}</p>
+                    <p className="text-[9px] font-mono text-foreground truncate">{color}</p>
                   </div>
                 </div>
               ))}

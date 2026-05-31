@@ -52,20 +52,20 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
   }
 
   return (
-    <div className="min-h-screen bg-[#07101e] text-slate-200 flex flex-col">
-      <header className="flex items-center px-4 md:px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="flex items-center px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-3 flex-1">
-          <div className="w-7 h-7 rounded-md bg-[#50cfff] flex items-center justify-center shrink-0">
-            <Layers size={14} className="text-[#01172b]" strokeWidth={2.5} />
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Layers size={14} className="text-primary-foreground" strokeWidth={2.5} />
           </div>
           <div>
-            <span className="font-semibold text-sm text-white">Pattern Gallery</span>
-            <span className="ml-2 text-xs text-slate-500">Finnomena Brand</span>
+            <span className="font-semibold text-sm text-foreground">Pattern Gallery</span>
+            <span className="ml-2 text-xs text-muted-foreground">Finnomena Brand</span>
           </div>
         </div>
         <button
           onClick={onSwitchMode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-xs text-slate-400 hover:text-[#50cfff] transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border hover:border-primary/40 text-xs text-muted-foreground hover:text-primary transition-all"
         >
           <Settings2 size={12} />
           Admin
@@ -73,7 +73,7 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
       </header>
 
       {/* Mode toggle */}
-      <div className="shrink-0 flex gap-0 border-b border-[#1a2a3a] bg-[#0a1628] px-4 md:px-6">
+      <div className="shrink-0 flex gap-0 border-b border-border bg-card px-4 md:px-6">
         {[
           { id: 'browse', label: 'Browse' },
           { id: 'type',   label: 'Type to Design' },
@@ -84,8 +84,8 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
             className={cn(
               'px-4 py-2.5 text-xs font-semibold border-b-2 transition-all',
               mode === id
-                ? 'text-[#50cfff] border-[#50cfff]'
-                : 'text-slate-500 border-transparent hover:text-slate-300'
+                ? 'text-primary border-primary'
+                : 'text-muted-foreground border-transparent hover:text-foreground'
             )}
           >
             {label}
@@ -104,15 +104,15 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
               onChange={e => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a word to design..."
-              className="w-full px-4 py-3 rounded-xl bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-white placeholder-slate-600 text-sm mb-6"
+              className="w-full px-4 py-3 rounded-xl bg-muted border border-border focus:border-primary/60 focus:outline-none text-foreground placeholder-muted-foreground text-sm mb-6"
             />
 
             {dictWords.length === 0 ? (
-              <p className="text-center text-slate-600 text-sm py-8">
+              <p className="text-center text-muted-foreground text-sm py-8">
                 No dictionary words yet. Ask an admin to add some!
               </p>
             ) : filtered.length === 0 ? (
-              <p className="text-center text-slate-600 text-sm py-8">
+              <p className="text-center text-muted-foreground text-sm py-8">
                 No words found — try Browse or a different term.
               </p>
             ) : (
@@ -121,21 +121,21 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                   <button
                     key={w.id}
                     onClick={() => onSelectWord(w)}
-                    className="w-full text-left px-4 py-3 rounded-xl bg-[#0a1628] border border-[#1a2a3a] hover:border-[#50cfff]/40 hover:bg-[#0c1e36] transition-all group"
+                    className="w-full text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-accent transition-all group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-white group-hover:text-[#50cfff] transition-colors">
+                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                           {w.word}
                         </p>
                         {w.description && (
-                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">{w.description}</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{w.description}</p>
                         )}
                       </div>
                       {w.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 shrink-0">
                           {w.tags.slice(0, 3).map(tag => (
-                            <span key={tag} className="px-1.5 py-0.5 rounded bg-[#0c1926] border border-[#1e2d3d] text-[9px] text-slate-500">
+                            <span key={tag} className="px-1.5 py-0.5 rounded bg-muted border border-border text-[9px] text-muted-foreground">
                               {tag}
                             </span>
                           ))}
@@ -143,8 +143,8 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                       )}
                     </div>
                     <div className="flex items-center gap-1 mt-2">
-                      <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: w.colorA }} />
-                      <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: w.colorB }} />
+                      <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: w.colorA }} />
+                      <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: w.colorB }} />
                     </div>
                   </button>
                 ))}
@@ -156,8 +156,8 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
         /* ── Browse ─────────────────────────────────────────────── */
         <div className="flex-1 p-6 md:p-10">
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold text-white mb-1">Choose a Category</h1>
-            <p className="text-sm text-slate-500 mb-8">Pick a style to browse pattern templates</p>
+            <h1 className="text-2xl font-bold text-foreground mb-1">Choose a Category</h1>
+            <p className="text-sm text-muted-foreground mb-8">Pick a style to browse pattern templates</p>
 
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map(cat => {
@@ -170,10 +170,10 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                     onClick={() => templates.length > 0 && onSelect(cat.id)}
                     disabled={templates.length === 0}
                     className={cn(
-                      'group text-left bg-[#0a1628] border rounded-xl p-4 transition-all',
+                      'group text-left bg-card border rounded-xl p-4 transition-all',
                       templates.length > 0
-                        ? 'border-[#1a2a3a] hover:border-[#50cfff]/40 hover:bg-[#0c1e36] cursor-pointer'
-                        : 'border-[#1a2a3a] opacity-40 cursor-not-allowed'
+                        ? 'border-border hover:border-primary/40 hover:bg-accent cursor-pointer'
+                        : 'border-border opacity-40 cursor-not-allowed'
                     )}
                   >
                     <div className="flex gap-1.5 mb-4 h-14">
@@ -182,7 +182,7 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
                           <PatternPreview seed={t.seed} size={56} />
                         </div>
                       )) : (
-                        <div className="flex-1 rounded bg-[#0c1926] border border-[#1e2d3d] flex items-center justify-center text-slate-700 text-2xl">
+                        <div className="flex-1 rounded bg-muted border border-border flex items-center justify-center text-muted-foreground text-2xl">
                           {cat.icon}
                         </div>
                       )}
@@ -190,12 +190,12 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
 
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-bold text-white group-hover:text-[#50cfff] transition-colors">
+                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                           {cat.icon} {cat.label}
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{cat.description}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{cat.description}</p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-semibold text-slate-500 mt-0.5">
+                      <span className="shrink-0 text-[10px] font-semibold text-muted-foreground mt-0.5">
                         {templates.length} pattern{templates.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -205,7 +205,7 @@ function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode
             </div>
 
             {gallery.templates.length === 0 && (
-              <p className="text-center text-slate-600 text-sm mt-8">
+              <p className="text-center text-muted-foreground text-sm mt-8">
                 No patterns in gallery yet. Ask an admin to add some!
               </p>
             )}
@@ -223,24 +223,24 @@ function TemplatePage({ categoryId, gallery, onBack, onSelect }) {
   const templates = gallery.templates.filter(t => t.category === categoryId)
 
   return (
-    <div className="min-h-screen bg-[#07101e] text-slate-200 flex flex-col">
-      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-xs"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
         >
           <ArrowLeft size={14} />
           Categories
         </button>
-        <span className="text-slate-600">/</span>
-        <span className="text-sm font-semibold text-white">{cat?.icon} {cat?.label}</span>
-        <span className="text-[11px] text-slate-500 ml-auto">{templates.length} patterns</span>
+        <span className="text-muted-foreground">/</span>
+        <span className="text-sm font-semibold text-foreground">{cat?.icon} {cat?.label}</span>
+        <span className="text-[11px] text-muted-foreground ml-auto">{templates.length} patterns</span>
       </header>
 
       <div className="flex-1 p-6">
         <div className="max-w-3xl mx-auto">
           {templates.length === 0 ? (
-            <div className="text-center py-16 text-slate-600">No templates in this category yet.</div>
+            <div className="text-center py-16 text-muted-foreground">No templates in this category yet.</div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {templates.map(t => (
@@ -274,7 +274,7 @@ function TemplateCard({ template, onSelect }) {
   return (
     <button
       onClick={onSelect}
-      className="group text-left bg-[#0a1628] border border-[#1a2a3a] rounded-xl overflow-hidden hover:border-[#50cfff]/40 transition-all"
+      className="group text-left bg-card border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-all"
     >
       {/* 2×2 Quad preview */}
       <div className="w-full aspect-square overflow-hidden">
@@ -286,7 +286,7 @@ function TemplateCard({ template, onSelect }) {
             style={{ width: '100%', height: '100%' }}
           />
         ) : (
-          <div className="w-full h-full bg-[#0c1926]" />
+          <div className="w-full h-full bg-muted" />
         )}
       </div>
 
@@ -295,9 +295,9 @@ function TemplateCard({ template, onSelect }) {
           {template.name}
         </p>
         <div className="flex items-center gap-1.5 mt-1.5">
-          <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: colorA }} />
-          <span className="w-3 h-3 rounded-sm border border-white/10" style={{ backgroundColor: colorB }} />
-          <span className="text-[9px] text-slate-600 ml-auto font-mono">{colorA}</span>
+          <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorA }} />
+          <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorB }} />
+          <span className="text-[9px] text-muted-foreground ml-auto font-mono">{colorA}</span>
         </div>
       </div>
     </button>
@@ -377,24 +377,24 @@ function EditorPage({ template, onBack }) {
   }, [rectangles, colorA, colorB, template.name])
 
   return (
-    <div className="min-h-screen md:h-screen bg-[#07101e] text-slate-200 flex flex-col md:overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-background text-foreground flex flex-col md:overflow-hidden">
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors text-xs"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
         >
           <ArrowLeft size={14} />
           Back
         </button>
-        <span className="text-slate-600">/</span>
-        <span className="text-sm font-semibold text-white truncate">{template.name}</span>
+        <span className="text-muted-foreground">/</span>
+        <span className="text-sm font-semibold text-foreground truncate">{template.name}</span>
       </header>
 
       <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden md:min-h-0">
 
         {/* Canvas */}
-        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-[#07101e] flex items-center justify-center p-4 md:p-8 h-[min(90vw,480px)] md:h-auto">
+        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-background flex items-center justify-center p-4 md:p-8 h-[min(90vw,480px)] md:h-auto">
           <EditorCanvasArea
             blocks={blocks}
             rectangles={rectangles}
@@ -404,12 +404,12 @@ function EditorPage({ template, onBack }) {
         </main>
 
         {/* Right panel */}
-        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-[#0a1628] border-t md:border-t-0 md:border-r border-[#1a2a3a] flex flex-col max-h-[55vh] md:max-h-none md:overflow-hidden">
+        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-card border-t md:border-t-0 md:border-r border-border flex flex-col max-h-[55vh] md:max-h-none md:overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
 
             {/* Color pairs */}
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Color Scheme</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Color Scheme</p>
               <ColorPairGrid
                 colorA={colorA}
                 colorB={colorB}
@@ -421,7 +421,7 @@ function EditorPage({ template, onBack }) {
             <div>
               <button
                 onClick={() => setShowColorPicker(v => !v)}
-                className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 hover:text-slate-300 transition-colors"
+                className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
               >
                 Custom Colors
                 <span className="text-[9px]">{showColorPicker ? '▲' : '▼'}</span>
@@ -441,7 +441,7 @@ function EditorPage({ template, onBack }) {
           </div>
 
           {/* Actions */}
-          <div className="shrink-0 border-t border-[#1a2a3a] p-4 space-y-2 bg-[#0a1628]">
+          <div className="shrink-0 border-t border-border p-4 space-y-2 bg-card">
             <Button className="w-full gap-2 text-xs" onClick={handleGenerate}>
               <RefreshCw size={13} />
               Generate Variation
@@ -504,7 +504,7 @@ function EditorCanvasArea({ blocks, rectangles, colorA, colorB }) {
         colorA={colorA}
         colorB={colorB}
       />
-      <p className="text-xs text-slate-600 shrink-0">1920 × 1920 px export</p>
+      <p className="text-xs text-muted-foreground shrink-0">1920 × 1920 px export</p>
     </div>
   )
 }
@@ -523,15 +523,15 @@ function ColorPairGrid({ colorA, colorB, onSelect }) {
           className={cn(
             'flex flex-col items-center gap-1 p-1.5 rounded-md border transition-all',
             active?.id === pair.id
-              ? 'border-[#50cfff] bg-[#0d2035]'
-              : 'border-[#1e2d3d] bg-[#0c1926] hover:border-[#3a4a5a]'
+              ? 'border-primary bg-accent'
+              : 'border-border bg-muted hover:border-ring'
           )}
         >
           <div className="flex gap-0.5 w-full">
-            <span className="flex-1 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.surface }} />
-            <span className="flex-1 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.background }} />
+            <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
+            <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
           </div>
-          <span className="text-[8px] text-slate-500 leading-none text-center line-clamp-1 w-full">{pair.label}</span>
+          <span className="text-[8px] text-muted-foreground leading-none text-center line-clamp-1 w-full">{pair.label}</span>
         </button>
       ))}
     </div>
@@ -561,10 +561,10 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
             onClick={() => setSlot(s)}
             className={cn(
               'flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-xs transition-all',
-              slot === s ? 'border-[#50cfff] bg-[#0d2035] text-white' : 'border-[#1e2d3d] bg-[#0c1926] text-slate-400'
+              slot === s ? 'border-primary bg-accent text-foreground' : 'border-border bg-muted text-muted-foreground'
             )}
           >
-            <span className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: c }} />
+            <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: c }} />
             <span>{label}</span>
           </button>
         ))}
@@ -572,7 +572,7 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
       <div className="space-y-1">
         {Object.entries(BRAND).map(([fam, colors]) => (
           <div key={fam} className="flex items-center gap-1.5">
-            <span className="text-[9px] text-slate-600 w-12 text-right shrink-0">{fam}</span>
+            <span className="text-[9px] text-muted-foreground/60 w-12 text-right shrink-0">{fam}</span>
             <div className="flex gap-1">
               {colors.map(hex => (
                 <button
@@ -581,8 +581,8 @@ function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
                   className={cn(
                     'w-5 h-5 rounded-sm border transition-all hover:scale-110',
                     (slot === 'A' ? colorA : colorB) === hex
-                      ? 'border-[#50cfff] shadow-[0_0_0_1px_#50cfff]'
-                      : 'border-white/10 hover:border-white/30'
+                      ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary))]'
+                      : 'border-foreground/10 hover:border-foreground/30'
                   )}
                   style={{ backgroundColor: hex }}
                 />

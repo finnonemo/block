@@ -18,14 +18,14 @@ function SegGroup({ options, value, onChange, disabled = false, cols }) {
           className={cn(
             'flex flex-col items-center justify-center min-w-[40px] h-11 md:h-9 px-2 rounded-md text-xs font-semibold transition-all border',
             value === opt.value
-              ? 'bg-[#50cfff] text-[#01172b] border-[#50cfff] shadow-sm'
-              : 'bg-[#0c1926] text-slate-400 border-[#1e2d3d] hover:border-[#3a4a5a] hover:text-slate-200',
+              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+              : 'bg-muted text-muted-foreground border-border hover:border-ring hover:text-foreground',
             disabled && 'opacity-30 pointer-events-none'
           )}
         >
           <span>{opt.label}</span>
           {opt.sub && (
-            <span className={cn('text-[9px] mt-px font-normal', value === opt.value ? 'text-[#01172b]/70' : 'text-slate-600')}>
+            <span className={cn('text-[9px] mt-px font-normal', value === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground/60')}>
               {opt.sub}
             </span>
           )}
@@ -47,10 +47,9 @@ function ParamSlider({ value, min, max, step = 1, onChange, formatLabel }) {
         step={step}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="flex-1 h-4 md:h-1.5 accent-[#50cfff] cursor-pointer touch-manipulation"
-        style={{ accentColor: '#50cfff' }}
+        className="flex-1 h-4 md:h-1.5 accent-primary cursor-pointer touch-manipulation"
       />
-      <span className="text-xs font-mono text-[#50cfff] w-10 text-right shrink-0">
+      <span className="text-xs font-mono text-primary w-10 text-right shrink-0">
         {formatLabel ? formatLabel(value) : value}
       </span>
     </div>
@@ -78,14 +77,14 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
               onClick={() => setOpenGroup(isOpen && !hasActive ? null : group)}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all',
-                hasActive ? 'bg-[#0d2035] border border-[#50cfff]/40 text-white' : 'text-slate-400 hover:text-slate-200'
+                hasActive ? 'bg-accent border border-primary/40 text-foreground' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <span className="font-semibold flex-1 text-left">{group}</span>
               {hasActive && (
                 <span className="flex gap-1">
-                  <span className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: colorA }} />
-                  <span className="w-3 h-3 rounded-sm border border-white/20" style={{ backgroundColor: colorB }} />
+                  <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: colorA }} />
+                  <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: colorB }} />
                 </span>
               )}
               <span className="text-[10px] opacity-40">{isOpen ? '▲' : '▼'}</span>
@@ -100,13 +99,13 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
                     className={cn(
                       'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all border',
                       activePair?.id === pair.id
-                        ? 'border-[#50cfff] bg-[#0d2035] text-white'
-                        : 'border-transparent text-slate-400 hover:border-[#1e2d3d] hover:text-slate-200'
+                        ? 'border-primary bg-accent text-foreground'
+                        : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
                     )}
                   >
                     <span className="flex gap-0.5 shrink-0">
-                      <span className="w-5 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.surface }} />
-                      <span className="w-5 h-5 rounded-sm border border-white/10" style={{ backgroundColor: pair.background }} />
+                      <span className="w-5 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
+                      <span className="w-5 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
                     </span>
                     <span className="flex-1 text-left">{pair.label}</span>
                   </button>
@@ -125,7 +124,7 @@ function ColorPairPicker({ colorA, colorB, onSelectPair }) {
 function SwatchRow({ family, colors, activeColor, onPick }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-slate-600 w-14 flex-shrink-0 text-right">{family}</span>
+      <span className="text-[10px] text-muted-foreground/60 w-14 flex-shrink-0 text-right">{family}</span>
       <div className="flex gap-1 flex-wrap">
         {colors.map(hex => (
           <button
@@ -135,8 +134,8 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
             className={cn(
               'w-6 h-6 md:w-5 md:h-5 rounded-sm border transition-all hover:scale-110',
               activeColor === hex
-                ? 'border-[#50cfff] shadow-[0_0_0_1px_#50cfff]'
-                : 'border-white/10 hover:border-white/30'
+                ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary))]'
+                : 'border-foreground/10 hover:border-foreground/30'
             )}
             style={{ backgroundColor: hex }}
           />
@@ -190,7 +189,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
           onClick={() => set('overlapChance', overlapChance === 1 ? 0 : 1)}
           className={cn(
             "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-            overlapChance === 1 ? 'bg-[#50cfff]' : 'bg-[#1e2d3d]'
+            overlapChance === 1 ? 'bg-primary' : 'bg-muted'
           )}
         >
           <span
@@ -244,8 +243,8 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
 
 
       {/* ── Start Block ────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
-        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">Start Block</h4>
+      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
+        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">Start Block</h4>
         <ParamRow label="Start X" hint="X-coordinate for the Bottom-Left corner">
           <ParamSlider value={params.startX ?? 0} min={0} max={15} onChange={v => set('startX', v)} />
         </ParamRow>
@@ -267,8 +266,8 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       </div>
 
       {/* ── Middle Blocks ────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
-        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">Middle Blocks</h4>
+      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
+        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">Middle Blocks</h4>
         <ParamRow label="Min Width" hint="Minimum width of middle blocks (0 = Random)">
           <ParamSlider value={params.midMinW ?? 0} min={0} max={14} onChange={v => set('midMinW', v)} />
         </ParamRow>
@@ -287,8 +286,8 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
       </div>
 
       {/* ── End Block ──────────────────────────────────────────────────── */}
-      <div className="space-y-3 bg-[#0c1926] p-3 rounded-lg border border-[#1e2d3d]">
-        <h4 className="text-[10px] font-bold tracking-widest text-[#50cfff] uppercase">End Block</h4>
+      <div className="space-y-3 bg-muted p-3 rounded-lg border border-border">
+        <h4 className="text-[10px] font-bold tracking-widest text-primary uppercase">End Block</h4>
         <ParamRow label="End X" hint="X-coordinate for the Top-Right corner">
           <ParamSlider value={params.endX ?? 15} min={0} max={15} onChange={v => set('endX', v)} />
         </ParamRow>
@@ -332,11 +331,11 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
               className={cn(
                 'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-all',
                 activeSlot === slot
-                  ? 'border-[#50cfff] bg-[#0d2035] text-white'
-                  : 'border-[#1e2d3d] bg-[#0c1926] text-slate-500 hover:border-[#2a3a4a]'
+                  ? 'border-primary bg-accent text-foreground'
+                  : 'border-border bg-muted text-muted-foreground hover:border-ring'
               )}
             >
-              <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-white/20" style={{ backgroundColor: color }} />
+              <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-foreground/20" style={{ backgroundColor: color }} />
               <span className="truncate">{label}</span>
               <span className="ml-auto font-mono text-[9px] opacity-50 shrink-0">{color}</span>
             </button>
@@ -365,8 +364,8 @@ function ParamRow({ label, hint, children }) {
   return (
     <div className="space-y-1.5 min-w-0">
       <div className="flex items-baseline justify-between gap-2 min-w-0">
-        <span className="text-xs font-semibold text-slate-300 shrink-0">{label}</span>
-        {hint && <span className="text-[10px] text-slate-600 text-right leading-tight min-w-0">{hint}</span>}
+        <span className="text-xs font-semibold text-foreground shrink-0">{label}</span>
+        {hint && <span className="text-[10px] text-muted-foreground text-right leading-tight min-w-0">{hint}</span>}
       </div>
       {children}
     </div>

@@ -98,7 +98,7 @@ export function PatternPreview({ seed, blocks, colorA, colorB, size = 80 }) {
     () => resolve({ seed, blocks, colorA, colorB }),
     [seed, blocks, colorA, colorB]
   )
-  if (!data) return <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
+  if (!data) return <div style={{ width: size, height: size }} className="bg-muted rounded" />
   return <PatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} size={size} />
 }
 
@@ -107,6 +107,6 @@ export function QuadPatternPreview({ seed, blocks, colorA, colorB, size = 160 })
     () => resolve({ seed, blocks, colorA, colorB }),
     [seed, blocks, colorA, colorB]
   )
-  if (!data) return <div style={{ width: size, height: size }} className="bg-[#0c1926] rounded" />
+  if (!data) return <div style={{ width: size, height: size }} className="bg-muted rounded" />
   return <QuadPatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} size={size} />
 }

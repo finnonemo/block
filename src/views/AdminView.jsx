@@ -242,21 +242,21 @@ export default function AdminView({ onSwitchMode }) {
   }, [handleSeedApply])
 
   return (
-    <div className="min-h-screen md:h-screen bg-[#07101e] text-slate-200 flex flex-col md:overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-background text-foreground flex flex-col md:overflow-hidden">
       {/* Header */}
-      <header className="flex items-center px-4 md:px-6 h-12 md:h-14 border-b border-[#1a2a3a] bg-[#0a1628] shrink-0">
+      <header className="flex items-center px-4 md:px-6 h-12 md:h-14 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-3 flex-1">
-          <div className="w-7 h-7 rounded-md bg-[#50cfff] flex items-center justify-center shrink-0">
-            <Layers size={14} className="text-[#01172b]" strokeWidth={2.5} />
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Layers size={14} className="text-primary-foreground" strokeWidth={2.5} />
           </div>
           <div>
-            <span className="font-semibold text-sm text-white">Pattern Builder</span>
-            <span className="ml-2 text-xs text-slate-500">Admin · 16×16</span>
+            <span className="font-semibold text-sm text-foreground">Pattern Builder</span>
+            <span className="ml-2 text-xs text-muted-foreground">Admin · 16×16</span>
           </div>
         </div>
         <button
           onClick={onSwitchMode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-xs text-slate-400 hover:text-[#50cfff] transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border hover:border-primary/40 text-xs text-muted-foreground hover:text-primary transition-all"
         >
           <Users size={12} />
           User View
@@ -267,7 +267,7 @@ export default function AdminView({ onSwitchMode }) {
       <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden md:min-h-0">
 
         {/* Canvas */}
-        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-[#07101e] flex items-center justify-center p-3 md:p-6 h-[min(90vw,480px)] md:h-auto">
+        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-background flex items-center justify-center p-3 md:p-6 h-[min(90vw,480px)] md:h-auto">
           <CanvasArea
             blocks={blocks}
             rectangles={rectangles}
@@ -278,10 +278,10 @@ export default function AdminView({ onSwitchMode }) {
         </main>
 
         {/* Sidebar */}
-        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-[#0a1628] border-t md:border-t-0 md:border-r border-[#1a2a3a] flex flex-col max-h-[60vh] md:max-h-none md:overflow-hidden">
+        <aside className="order-2 md:order-1 w-full md:w-72 md:shrink-0 bg-card border-t md:border-t-0 md:border-r border-border flex flex-col max-h-[60vh] md:max-h-none md:overflow-hidden">
 
           {/* Tab bar */}
-          <div className="shrink-0 flex border-b border-[#1a2a3a]">
+          <div className="shrink-0 flex border-b border-border">
             {[
               { id: 'params',     label: 'Params',  Icon: Layers,      badge: null },
               { id: 'gallery',    label: 'Gallery', Icon: BookOpen,    badge: gallery.templates.length || null },
@@ -294,14 +294,14 @@ export default function AdminView({ onSwitchMode }) {
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-semibold transition-all border-b-2',
                   sidebarTab === id
-                    ? 'text-[#50cfff] border-[#50cfff] bg-[#0c1926]'
-                    : 'text-slate-500 border-transparent hover:text-slate-300'
+                    ? 'text-primary border-primary bg-muted'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
                 )}
               >
                 <Icon size={11} />
                 {label}
                 {badge > 0 && (
-                  <span className="ml-0.5 px-1 py-0 rounded-full bg-[#50cfff]/20 text-[#50cfff] text-[9px] font-bold">
+                  <span className="ml-0.5 px-1 py-0 rounded-full bg-primary/20 text-primary text-[9px] font-bold">
                     {badge}
                   </span>
                 )}
@@ -326,7 +326,7 @@ export default function AdminView({ onSwitchMode }) {
                 {/* Stats */}
                 <div>
                   <SectionLabel>Block Groups</SectionLabel>
-                  <div className="bg-[#0c1926] border border-[#1e2d3d] rounded-md p-3 space-y-2 text-xs">
+                  <div className="bg-muted border border-border rounded-md p-3 space-y-2 text-xs">
                     <StatRow label="Groups extracted">
                       <span className={cn('font-mono font-semibold',
                         rectangles.length >= 3 && rectangles.length <= 6 ? 'text-emerald-400' : 'text-amber-400')}>
@@ -334,10 +334,10 @@ export default function AdminView({ onSwitchMode }) {
                       </span>
                     </StatRow>
                     <StatRow label="Active cells (A)">
-                      <span className="font-mono text-slate-300">{blocks.filter(v => v === 0).length}</span>
+                      <span className="font-mono text-foreground">{blocks.filter(v => v === 0).length}</span>
                     </StatRow>
                     <StatRow label="Output size">
-                      <span className="font-mono text-slate-300">1920 × 1920</span>
+                      <span className="font-mono text-foreground">1920 × 1920</span>
                     </StatRow>
                   </div>
                 </div>
@@ -348,11 +348,11 @@ export default function AdminView({ onSwitchMode }) {
                     <SectionLabel>Rect Layout</SectionLabel>
                     <div className="space-y-1">
                       {rectangles.map((r, i) => (
-                        <div key={i} className="flex items-center gap-2 bg-[#0c1926] border border-[#1e2d3d] rounded px-2.5 py-1.5 text-xs">
-                          <span className="w-3 h-3 rounded-sm shrink-0 border border-white/10" style={{ backgroundColor: colorA }} />
-                          <span className="text-slate-500">#{i + 1}</span>
-                          <span className="font-mono text-slate-400">x{r.x} y{r.y}</span>
-                          <span className="font-mono text-[#50cfff] ml-auto">{r.w}×{r.h}</span>
+                        <div key={i} className="flex items-center gap-2 bg-muted border border-border rounded px-2.5 py-1.5 text-xs">
+                          <span className="w-3 h-3 rounded-sm shrink-0 border border-foreground/10" style={{ backgroundColor: colorA }} />
+                          <span className="text-muted-foreground">#{i + 1}</span>
+                          <span className="font-mono text-muted-foreground">x{r.x} y{r.y}</span>
+                          <span className="font-mono text-primary ml-auto">{r.w}×{r.h}</span>
                         </div>
                       ))}
                     </div>
@@ -407,7 +407,7 @@ export default function AdminView({ onSwitchMode }) {
           </div>
 
           {/* Sticky bottom actions */}
-          <div className="shrink-0 border-t border-[#1a2a3a] p-4 space-y-2 bg-[#0a1628]">
+          <div className="shrink-0 border-t border-border p-4 space-y-2 bg-card">
             <Button className="w-full gap-2 text-xs" onClick={handleGenerate}>
               <RefreshCw size={13} />
               Generate Pattern
@@ -488,7 +488,7 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, onPaint }) {
         colorB={colorB}
         onPaint={onPaint}
       />
-      <p className="text-xs text-slate-600 shrink-0">
+      <p className="text-xs text-muted-foreground shrink-0">
         Click or drag to paint · Block groups auto-update
       </p>
     </div>
@@ -497,7 +497,7 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, onPaint }) {
 
 function SectionLabel({ children }) {
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
+    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
       {children}
     </p>
   )
@@ -505,7 +505,7 @@ function SectionLabel({ children }) {
 
 function StatRow({ label, children }) {
   return (
-    <div className="flex justify-between text-slate-400">
+    <div className="flex justify-between text-muted-foreground">
       <span>{label}</span>
       {children}
     </div>
@@ -550,14 +550,14 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
       <SectionLabel>Pattern Seed</SectionLabel>
 
       <div className="flex gap-1.5 mb-2">
-        <code className="flex-1 min-w-0 bg-[#0c1926] border border-[#1e2d3d] rounded px-2 py-1.5 text-[10px] font-mono text-[#50cfff] truncate select-all">
+        <code className="flex-1 min-w-0 bg-muted border border-border rounded px-2 py-1.5 text-[10px] font-mono text-primary truncate select-all">
           {seedStr ?? '—'}
         </code>
         <button
           onClick={handleCopy}
           disabled={!seedStr}
           title="Copy seed"
-          className="shrink-0 flex items-center justify-center w-7 h-7 rounded bg-[#0c1926] border border-[#1e2d3d] hover:border-[#3a4a5a] text-slate-400 hover:text-slate-200 disabled:opacity-30 transition-all"
+          className="shrink-0 flex items-center justify-center w-7 h-7 rounded bg-muted border border-border hover:border-ring text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
         >
           {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
         </button>
@@ -571,36 +571,36 @@ function SeedPanel({ seed, params, colorA, colorB, onApply }) {
           onKeyDown={e => e.key === 'Enter' && handleApply()}
           placeholder="Paste seed to restore…"
           className={cn(
-            'flex-1 min-w-0 bg-[#0c1926] border rounded px-2 py-1.5 text-[10px] font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none transition-colors',
+            'flex-1 min-w-0 bg-muted border rounded px-2 py-1.5 text-[10px] font-mono text-foreground placeholder:text-muted-foreground focus:outline-none transition-colors',
             error            ? 'border-red-500/60 focus:border-red-500'
             : preview        ? 'border-emerald-500/50 focus:border-emerald-500'
             : input.length   ? 'border-amber-500/50 focus:border-amber-500'
-                             : 'border-[#1e2d3d] focus:border-[#50cfff]'
+                             : 'border-border focus:border-primary'
           )}
         />
         <button
           onClick={handleApply}
           disabled={!input.trim()}
-          className="shrink-0 px-2 py-1.5 rounded bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff] text-[10px] font-semibold text-slate-400 hover:text-[#50cfff] disabled:opacity-30 transition-all"
+          className="shrink-0 px-2 py-1.5 rounded bg-muted border border-border hover:border-primary text-[10px] font-semibold text-muted-foreground hover:text-primary disabled:opacity-30 transition-all"
         >
           Apply
         </button>
       </div>
 
       {preview && (
-        <div className="mt-1.5 bg-[#0c1926] border border-emerald-500/30 rounded px-2 py-1.5 space-y-1">
+        <div className="mt-1.5 bg-muted border border-emerald-500/30 rounded px-2 py-1.5 space-y-1">
           <p className="text-[9px] font-semibold text-emerald-400 uppercase tracking-widest">Valid seed</p>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-400">
-            <span>Blocks <span className="text-slate-200">{preview.params.blockMin}-{preview.params.blockMax}</span></span>
-            <span>Start <span className="text-slate-200">X:{preview.params.startX} Y:{preview.params.startY}</span></span>
-            <span>Overlap <span className="text-slate-200">{preview.params.overlapChance === 1 ? 'On' : 'Off'}</span></span>
-            <span>Start Bounds <span className="text-slate-200">W:{preview.params.startMinW}-{preview.params.startMaxW} H:{preview.params.startMinH}-{preview.params.startMaxH}</span></span>
-            <span>End Bounds <span className="text-slate-200">W:{preview.params.endMinW}-{preview.params.endMaxW} H:{preview.params.endMinH}-{preview.params.endMaxH}</span></span>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-muted-foreground">
+            <span>Blocks <span className="text-foreground">{preview.params.blockMin}-{preview.params.blockMax}</span></span>
+            <span>Start <span className="text-foreground">X:{preview.params.startX} Y:{preview.params.startY}</span></span>
+            <span>Overlap <span className="text-foreground">{preview.params.overlapChance === 1 ? 'On' : 'Off'}</span></span>
+            <span>Start Bounds <span className="text-foreground">W:{preview.params.startMinW}-{preview.params.startMaxW} H:{preview.params.startMinH}-{preview.params.startMaxH}</span></span>
+            <span>End Bounds <span className="text-foreground">W:{preview.params.endMinW}-{preview.params.endMaxW} H:{preview.params.endMinH}-{preview.params.endMaxH}</span></span>
           </div>
-          <div className="flex items-center gap-2 text-[9px] text-slate-400">
-            <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: preview.colorA }} />
+          <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+            <span className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0" style={{ backgroundColor: preview.colorA }} />
             <span className="font-mono">{preview.colorA}</span>
-            <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: preview.colorB }} />
+            <span className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0" style={{ backgroundColor: preview.colorB }} />
             <span className="font-mono">{preview.colorB}</span>
           </div>
         </div>
@@ -641,8 +641,8 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, onExport, onImport, has
           className={cn(
             'px-2 py-1 rounded text-[10px] font-semibold border transition-all',
             activeCategory === 'all'
-              ? 'bg-[#50cfff] text-[#01172b] border-[#50cfff]'
-              : 'bg-[#0c1926] text-slate-400 border-[#1e2d3d] hover:border-[#3a4a5a]'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted text-muted-foreground border-border hover:border-ring'
           )}
         >
           All ({gallery.templates.length})
@@ -656,8 +656,8 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, onExport, onImport, has
               className={cn(
                 'px-2 py-1 rounded text-[10px] font-semibold border transition-all',
                 activeCategory === cat.id
-                  ? 'bg-[#50cfff] text-[#01172b] border-[#50cfff]'
-                  : 'bg-[#0c1926] text-slate-400 border-[#1e2d3d] hover:border-[#3a4a5a]'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted text-muted-foreground border-border hover:border-ring'
               )}
             >
               {cat.label} ({count})
@@ -671,11 +671,11 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, onExport, onImport, has
         <button
           onClick={onExport}
           disabled={gallery.templates.length === 0}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-[#1e2d3d] bg-[#0c1926] hover:border-[#3a4a5a] text-[10px] font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-30 transition-all"
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-border bg-muted hover:border-ring text-[10px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
         >
           <Download size={11} /> Export JSON
         </button>
-        <label className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-[#1e2d3d] bg-[#0c1926] hover:border-[#50cfff]/50 text-[10px] font-semibold text-slate-400 hover:text-[#50cfff] transition-all cursor-pointer">
+        <label className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded border border-border bg-muted hover:border-primary/50 text-[10px] font-semibold text-muted-foreground hover:text-primary transition-all cursor-pointer">
           <Upload size={11} /> Import JSON
           <input
             ref={importRef}
@@ -690,14 +690,14 @@ function GalleryTab({ gallery, onLoad, onDelete, onSave, onExport, onImport, has
         </label>
       </div>
 
-      <p className="text-[9px] text-slate-600 leading-snug">
-        Export → place <code className="text-slate-500">gallery.json</code> in{' '}
-        <code className="text-slate-500">public/</code> → redeploy to share with all users.
+      <p className="text-[9px] text-muted-foreground/60 leading-snug">
+        Export → place <code className="text-muted-foreground">gallery.json</code> in{' '}
+        <code className="text-muted-foreground">public/</code> → redeploy to share with all users.
       </p>
 
       {/* Template list */}
       {filtered.length === 0 ? (
-        <div className="text-center py-8 text-slate-600 text-xs">
+        <div className="text-center py-8 text-muted-foreground text-xs">
           {gallery.templates.length === 0
             ? 'No saved patterns yet.\nGenerate one and click Save.'
             : 'No patterns in this category.'}
@@ -722,7 +722,7 @@ function GalleryCard({ template, onLoad, onDelete }) {
   const cat = CATEGORIES.find(c => c.id === template.category)
 
   return (
-    <div className="flex items-center gap-2 bg-[#0c1926] border border-[#1e2d3d] rounded-md px-2 py-2 hover:border-[#3a4a5a] group transition-all">
+    <div className="flex items-center gap-2 bg-muted border border-border rounded-md px-2 py-2 hover:border-ring group transition-all">
       <div className="shrink-0 rounded overflow-hidden">
         <PatternPreview
           seed={template.seed}
@@ -733,19 +733,19 @@ function GalleryCard({ template, onLoad, onDelete }) {
         />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-slate-200 truncate">{template.name}</p>
-        <p className="text-[10px] text-slate-500">{cat?.icon} {cat?.label}</p>
+        <p className="text-xs font-medium text-foreground truncate">{template.name}</p>
+        <p className="text-[10px] text-muted-foreground">{cat?.icon} {cat?.label}</p>
       </div>
       <div className="flex gap-1 shrink-0">
         <button
           onClick={onLoad}
-          className="px-2 py-1 rounded bg-[#0d2035] border border-[#1e2d3d] hover:border-[#50cfff]/50 text-[10px] text-slate-400 hover:text-[#50cfff] transition-all"
+          className="px-2 py-1 rounded bg-accent border border-border hover:border-primary/50 text-[10px] text-muted-foreground hover:text-primary transition-all"
         >
           Load
         </button>
         <button
           onClick={onDelete}
-          className="p-1 rounded hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-all"
+          className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all"
         >
           <Trash2 size={11} />
         </button>
@@ -762,49 +762,49 @@ function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-[#0a1628] border border-[#1e2d3d] rounded-xl shadow-2xl p-5 space-y-4">
+      <div className="w-full max-w-sm bg-card border border-border rounded-xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">Save to Gallery</h3>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-200 transition-colors">
+          <h3 className="text-sm font-semibold text-foreground">Save to Gallery</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={16} />
           </button>
         </div>
 
         {/* Pattern preview */}
         <div className="flex justify-center">
-          <div className="rounded-lg overflow-hidden border border-[#1e2d3d]">
+          <div className="rounded-lg overflow-hidden border border-border">
             <PatternPreview seed={seed} blocks={blocks} colorA={colorA} colorB={colorB} size={120} />
           </div>
         </div>
 
         {/* Color chips */}
         <div className="flex justify-center gap-2">
-          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="w-4 h-4 rounded-sm border border-white/10" style={{ backgroundColor: colorA }} />
+          <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="w-4 h-4 rounded-sm border border-foreground/10" style={{ backgroundColor: colorA }} />
             {colorA}
           </span>
-          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="w-4 h-4 rounded-sm border border-white/10" style={{ backgroundColor: colorB }} />
+          <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="w-4 h-4 rounded-sm border border-foreground/10" style={{ backgroundColor: colorB }} />
             {colorB}
           </span>
         </div>
 
         {/* Name input */}
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Pattern name</label>
+          <label className="text-xs text-muted-foreground block mb-1">Pattern name</label>
           <input
             autoFocus
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && name.trim() && onSave(name.trim(), category)}
             placeholder="e.g. Rising Minimal"
-            className="w-full bg-[#0c1926] border border-[#1e2d3d] rounded px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-[#50cfff] transition-colors"
+            className="w-full bg-muted border border-border rounded px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
           />
         </div>
 
         {/* Category picker */}
         <div>
-          <label className="text-xs text-slate-400 block mb-2">Category</label>
+          <label className="text-xs text-muted-foreground block mb-2">Category</label>
           <div className="grid grid-cols-2 gap-1.5">
             {CATEGORIES.map(cat => (
               <button
@@ -813,8 +813,8 @@ function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-md border text-xs text-left transition-all',
                   category === cat.id
-                    ? 'border-[#50cfff] bg-[#0d2035] text-white'
-                    : 'border-[#1e2d3d] bg-[#0c1926] text-slate-400 hover:border-[#3a4a5a]'
+                    ? 'border-primary bg-accent text-foreground'
+                    : 'border-border bg-muted text-muted-foreground hover:border-ring'
                 )}
               >
                 <span className="text-sm">{cat.icon}</span>
@@ -868,14 +868,14 @@ function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
         <button
           title="Export dictionary.json"
           onClick={onExport}
-          className="px-2.5 h-8 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-slate-400 hover:text-[#50cfff] transition-all"
+          className="px-2.5 h-8 rounded-md bg-muted border border-border hover:border-primary/40 text-muted-foreground hover:text-primary transition-all"
         >
           <Download size={13} />
         </button>
         <button
           title="Import dictionary.json"
           onClick={() => importRef.current?.click()}
-          className="px-2.5 h-8 rounded-md bg-[#0c1926] border border-[#1e2d3d] hover:border-[#50cfff]/40 text-slate-400 hover:text-[#50cfff] transition-all"
+          className="px-2.5 h-8 rounded-md bg-muted border border-border hover:border-primary/40 text-muted-foreground hover:text-primary transition-all"
         >
           <Upload size={13} />
         </button>
@@ -890,13 +890,13 @@ function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Filter words..."
-          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+          className="w-full px-2.5 py-1.5 rounded-md bg-muted border border-border focus:border-primary/60 focus:outline-none text-xs text-foreground placeholder-muted-foreground"
         />
       )}
 
       {/* Word list */}
       {filtered.length === 0 ? (
-        <p className="text-center text-slate-600 text-xs py-6">
+        <p className="text-center text-muted-foreground text-xs py-6">
           {words.length === 0 ? 'No words yet. Add the first one!' : 'No matches.'}
         </p>
       ) : (
@@ -904,20 +904,20 @@ function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
           {filtered.map(w => (
             <div
               key={w.id}
-              className="flex items-start gap-2 bg-[#0c1926] border border-[#1e2d3d] rounded-lg px-3 py-2.5"
+              className="flex items-start gap-2 bg-muted border border-border rounded-lg px-3 py-2.5"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white truncate">{w.word}</span>
+                  <span className="text-xs font-bold text-foreground truncate">{w.word}</span>
                   {w.enabled?.colors !== false && (
-                    <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: w.colorA }} />
+                    <span className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0" style={{ backgroundColor: w.colorA }} />
                   )}
                   {w.enabled?.colors !== false && (
-                    <span className="w-3 h-3 rounded-sm border border-white/10 shrink-0" style={{ backgroundColor: w.colorB }} />
+                    <span className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0" style={{ backgroundColor: w.colorB }} />
                   )}
                 </div>
                 {w.description && (
-                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">{w.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{w.description}</p>
                 )}
                 {/* Enabled badges */}
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -929,7 +929,7 @@ function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
                     return (
                       <span key={key} className={cn(
                         'px-1 py-0.5 rounded text-[9px] border',
-                        on ? 'bg-[#0d2035] border-[#50cfff]/30 text-[#50cfff]' : 'bg-[#0a1628] border-[#1a2a3a] text-slate-600 line-through'
+                        on ? 'bg-accent border-primary/30 text-primary' : 'bg-card border-border text-muted-foreground line-through'
                       )}>
                         {label} {key}
                       </span>
@@ -938,10 +938,10 @@ function DictionaryTab({ words, onAdd, onEdit, onDelete, onExport, onImport }) {
                 </div>
               </div>
               <div className="flex gap-1 shrink-0">
-                <button onClick={() => onEdit(w)} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-[#50cfff] transition-all">
+                <button onClick={() => onEdit(w)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-primary transition-all">
                   <Pencil size={11} />
                 </button>
-                <button onClick={() => onDelete(w.id)} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-red-400 transition-all">
+                <button onClick={() => onDelete(w.id)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-red-400 transition-all">
                   <Trash2 size={11} />
                 </button>
               </div>
@@ -963,21 +963,21 @@ function SectionToggle({ label, enabled, onChange }) {
     >
       <span className={cn(
         'text-[10px] font-semibold uppercase tracking-widest transition-colors flex-1 text-left',
-        enabled ? 'text-slate-300' : 'text-slate-600'
+        enabled ? 'text-foreground' : 'text-muted-foreground'
       )}>
         {label}
       </span>
       {/* pill toggle */}
       <span className={cn(
         'relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors',
-        enabled ? 'bg-[#50cfff] border-[#50cfff]' : 'bg-[#1e2d3d] border-[#2a3a4a]'
+        enabled ? 'bg-primary border-primary' : 'bg-muted border-border'
       )}>
         <span className={cn(
           'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
           enabled ? 'translate-x-3.5' : 'translate-x-0.5'
         )} />
       </span>
-      <span className={cn('text-[9px] font-bold', enabled ? 'text-[#50cfff]' : 'text-slate-600')}>
+      <span className={cn('text-[9px] font-bold', enabled ? 'text-primary' : 'text-muted-foreground')}>
         {enabled ? 'ON' : 'OFF'}
       </span>
     </button>
@@ -1028,51 +1028,51 @@ function DictWordEditor({ entry, onSave, onCancel }) {
     <div className="p-3 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-white">{isNew ? 'Add Word' : 'Edit Word'}</span>
-        <button onClick={onCancel} className="p-1 rounded hover:bg-[#1e2d3d] text-slate-500 hover:text-slate-200 transition-all">
+        <span className="text-xs font-bold text-foreground">{isNew ? 'Add Word' : 'Edit Word'}</span>
+        <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-all">
           <X size={13} />
         </button>
       </div>
 
       {/* Word */}
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Word</label>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground block mb-1.5">Word</label>
         <input
           autoFocus
           type="text"
           value={form.word}
           onChange={e => set('word', e.target.value)}
           placeholder="e.g. Growth"
-          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+          className="w-full px-2.5 py-1.5 rounded-md bg-muted border border-border focus:border-primary/60 focus:outline-none text-xs text-foreground placeholder-muted-foreground"
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Description</label>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground block mb-1.5">Description</label>
         <input
           type="text"
           value={form.description}
           onChange={e => set('description', e.target.value)}
           placeholder="Short label for users"
-          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+          className="w-full px-2.5 py-1.5 rounded-md bg-muted border border-border focus:border-primary/60 focus:outline-none text-xs text-foreground placeholder-muted-foreground"
         />
       </div>
 
       {/* Tags */}
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Tags <span className="normal-case font-normal text-slate-600">(comma-separated)</span></label>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground block mb-1.5">Tags <span className="normal-case font-normal text-muted-foreground/60">(comma-separated)</span></label>
         <input
           type="text"
           value={form.tags}
           onChange={e => set('tags', e.target.value)}
           placeholder="ascending, dynamic"
-          className="w-full px-2.5 py-1.5 rounded-md bg-[#0c1926] border border-[#1e2d3d] focus:border-[#50cfff]/60 focus:outline-none text-xs text-white placeholder-slate-600"
+          className="w-full px-2.5 py-1.5 rounded-md bg-muted border border-border focus:border-primary/60 focus:outline-none text-xs text-foreground placeholder-muted-foreground"
         />
       </div>
 
       {/* Color section — toggleable */}
-      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.colors ? 'border-[#1e2d3d]' : 'border-[#1a2a3a]')}>
+      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.colors ? 'border-border' : 'border-border/50')}>
         <SectionToggle label="Colors" enabled={form.enabled.colors} onChange={() => toggleEnabled('colors')} />
         <div className={cn('transition-opacity', form.enabled.colors ? 'opacity-100' : 'opacity-30 pointer-events-none')}>
           <div className="grid grid-cols-3 gap-1">
@@ -1085,11 +1085,11 @@ function DictWordEditor({ entry, onSave, onCancel }) {
                   title={pair.label}
                   className={cn(
                     'flex gap-0.5 p-1 rounded border transition-all',
-                    active ? 'border-[#50cfff]' : 'border-[#1e2d3d] hover:border-[#3a4a5a]'
+                    active ? 'border-primary' : 'border-border hover:border-ring'
                   )}
                 >
-                  <span className="flex-1 h-4 rounded-sm border border-white/10" style={{ backgroundColor: pair.surface }} />
-                  <span className="flex-1 h-4 rounded-sm border border-white/10" style={{ backgroundColor: pair.background }} />
+                  <span className="flex-1 h-4 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
+                  <span className="flex-1 h-4 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
               </button>
             )
           })}
@@ -1099,8 +1099,8 @@ function DictWordEditor({ entry, onSave, onCancel }) {
 
       {/* Pattern preview */}
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1.5">Pattern Preview</label>
-        <div className="rounded-md overflow-hidden border border-[#1e2d3d]" style={{ aspectRatio: '1', background: form.colorB }}>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground block mb-1.5">Pattern Preview</label>
+        <div className="rounded-md overflow-hidden border border-border" style={{ aspectRatio: '1', background: form.colorB }}>
           {previewRects.length > 0 && (
             <PatternSVG
               rects={previewRects}
@@ -1113,7 +1113,7 @@ function DictWordEditor({ entry, onSave, onCancel }) {
       </div>
 
       {/* Parameters section — toggleable */}
-      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.params ? 'border-[#1e2d3d]' : 'border-[#1a2a3a]')}>
+      <div className={cn('rounded-lg border p-3 space-y-3 transition-colors', form.enabled.params ? 'border-border' : 'border-border/50')}>
         <SectionToggle label="Parameters" enabled={form.enabled.params} onChange={() => toggleEnabled('params')} />
         <div className={cn('transition-opacity', form.enabled.params ? 'opacity-100' : 'opacity-30 pointer-events-none')}>
           <ParameterPanel

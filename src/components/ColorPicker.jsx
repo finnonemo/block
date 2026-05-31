@@ -24,12 +24,12 @@ export function ColorPicker({ colorA, colorB, onChangeA, onChangeB }) {
             className={cn(
               'flex-1 flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border',
               active === slot
-                ? 'border-[#50cfff] bg-[#0d2035] text-white shadow-[0_0_0_1px_#50cfff]'
-                : 'border-[#2a3a4a] bg-[#0d1a2a] text-slate-400 hover:border-[#3a4a5a]'
+                ? 'border-primary bg-accent text-foreground shadow-[0_0_0_1px_hsl(var(--primary))]'
+                : 'border-border bg-muted text-muted-foreground hover:border-ring'
             )}
           >
             <span
-              className="w-4 h-4 rounded-sm flex-shrink-0 border border-white/20"
+              className="w-4 h-4 rounded-sm flex-shrink-0 border border-foreground/20"
               style={{ backgroundColor: color }}
             />
             <span>{label}</span>
@@ -42,7 +42,7 @@ export function ColorPicker({ colorA, colorB, onChangeA, onChangeB }) {
       <div className="space-y-1.5">
         {Object.entries(BRAND_PALETTE).map(([family, colors]) => (
           <div key={family} className="flex items-center gap-1.5">
-            <span className="text-[10px] text-slate-500 w-14 flex-shrink-0 text-right">{family}</span>
+            <span className="text-[10px] text-muted-foreground w-14 flex-shrink-0 text-right">{family}</span>
             <div className="flex gap-1">
               {colors.map((hex) => (
                 <button
@@ -52,8 +52,8 @@ export function ColorPicker({ colorA, colorB, onChangeA, onChangeB }) {
                   className={cn(
                     'w-5 h-5 rounded-sm border transition-all hover:scale-110',
                     (active === 'A' ? colorA : colorB) === hex
-                      ? 'border-[#50cfff] shadow-[0_0_0_1px_#50cfff]'
-                      : 'border-white/10 hover:border-white/30'
+                      ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary))]'
+                      : 'border-foreground/10 hover:border-foreground/30'
                   )}
                   style={{ backgroundColor: hex }}
                 />
