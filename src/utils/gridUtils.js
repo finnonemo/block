@@ -1,6 +1,28 @@
 export const COLS = 16;
 export const ROWS = 16;
 
+// ─── Aspect Ratios — concept ported from the v1 spec ─────────────────────────
+// Two-tier selection: pick a ratio (shape family), then a grid resolution
+// within that ratio. RATIOS[ratio][0] is always the default (low-res) grid.
+export const RATIOS = {
+  '1:1':  [ { label: '16 × 16', cols: 16, rows: 16, key: '16x16' },
+             { label: '32 × 32', cols: 32, rows: 32, key: '32x32' } ],
+  '16:9': [ { label: '16 × 9',  cols: 16, rows: 9,  key: '16x9'  },
+             { label: '32 × 18', cols: 32, rows: 18, key: '32x18' } ],
+  '4:5':  [ { label: '16 × 20', cols: 16, rows: 20, key: '16x20' },
+             { label: '32 × 40', cols: 32, rows: 40, key: '32x40' } ],
+  '9:16': [ { label: '9 × 16',  cols: 9,  rows: 16, key: '9x16'  },
+             { label: '18 × 32', cols: 18, rows: 32, key: '18x32' } ],
+};
+
+// Figma SVG export pixel dimensions per ratio (Module 10.1 concept)
+export const OUTPUT_SIZES = {
+  '1:1':  { width: 1920, height: 1920 },
+  '16:9': { width: 1920, height: 1080 },
+  '4:5':  { width: 1920, height: 2400 },
+  '9:16': { width: 1080, height: 1920 },
+};
+
 const ALLOWED_HEIGHTS = [1, 2, 3, 4, 6, 8, 10, 12, 14];
 const ALLOWED_WIDTHS = [1, 2, 3, 4, 6, 8, 10, 12, 14];
 
@@ -696,16 +718,66 @@ export function generatePatternRects(cfg, rng = Math.random) {
   return bestPositionCandidate ?? rects;
 }
 
-export function syncBlocks(rects) {
-  const blocks = Array(COLS * ROWS).fill(1);
+export function syncBlocks(rects, cols = COLS, rows = ROWS) {
+  const blocks = Array(cols * rows).fill(1);
   for (const r of rects) {
-    for (let row = r.y; row < r.y + r.h && row < ROWS; row++) {
-      for (let col = r.x; col < r.x + r.w && col < COLS; col++) {
-        blocks[row * COLS + col] = 0;
+    for (let row = r.y; row < r.y + r.h && row < rows; row++) {
+      for (let col = r.x; col < r.x + r.w && col < cols; col++) {
+        blocks[row * cols + col] = 0;
       }
     }
   }
   return blocks;
+}
+
+// ─── Aspect Ratio Grid Remapping ──────────────────────────────────────────────
+// Preserves pattern content when the grid is resized, via three strategies:
+//   1. 2x upscale  — each new cell copies its parent (pixel doubling)
+//   2. 2x downscale — each new cell takes the majority vote of its 2x2 block
+//   3. nearest-neighbor fallback — normalized UV lookup for any other change
+export function mapBlocksGrid(oldBlocks, oldCols, oldRows, newCols, newRows) {
+  if (oldCols === newCols && oldRows === newRows) return [...oldBlocks];
+
+  const newBlocks = new Array(newCols * newRows);
+
+  if (newCols === oldCols * 2 && newRows === oldRows * 2) {
+    for (let r = 0; r < newRows; r++) {
+      for (let c = 0; c < newCols; c++) {
+        newBlocks[r * newCols + c] = oldBlocks[Math.floor(r / 2) * oldCols + Math.floor(c / 2)];
+      }
+    }
+    return newBlocks;
+  }
+
+  if (oldCols === newCols * 2 && oldRows === newRows * 2) {
+    for (let r = 0; r < newRows; r++) {
+      for (let c = 0; c < newCols; c++) {
+        const children = [
+          oldBlocks[(r * 2) * oldCols + (c * 2)],
+          oldBlocks[(r * 2) * oldCols + (c * 2 + 1)],
+          oldBlocks[(r * 2 + 1) * oldCols + (c * 2)],
+          oldBlocks[(r * 2 + 1) * oldCols + (c * 2 + 1)],
+        ];
+        const counts = new Map();
+        for (const v of children) counts.set(v, (counts.get(v) ?? 0) + 1);
+        let mode = children[0], modeCount = 0;
+        for (const [v, n] of counts) if (n > modeCount) { mode = v; modeCount = n; }
+        newBlocks[r * newCols + c] = mode;
+      }
+    }
+    return newBlocks;
+  }
+
+  for (let r = 0; r < newRows; r++) {
+    for (let c = 0; c < newCols; c++) {
+      const normR = newRows > 1 ? r / (newRows - 1) : 0;
+      const normC = newCols > 1 ? c / (newCols - 1) : 0;
+      const oldR = Math.round(normR * (oldRows - 1));
+      const oldC = Math.round(normC * (oldCols - 1));
+      newBlocks[r * newCols + c] = oldBlocks[oldR * oldCols + oldC];
+    }
+  }
+  return newBlocks;
 }
 
 // Mirror blocks array horizontally or vertically
@@ -752,28 +824,28 @@ function qsum(t, x, y, w, h) {
   return s;
 }
 
-export function extractBlockGroups(blocks) {
+export function extractBlockGroups(blocks, cols = COLS, rows = ROWS) {
   const active = blocks.map(v => (v === 0 ? 1 : 0));
-  const overlap = new Uint8Array(COLS * ROWS);
-  const covered = new Uint8Array(COLS * ROWS);
+  const overlap = new Uint8Array(cols * rows);
+  const covered = new Uint8Array(cols * rows);
   const rects = [];
 
   for (let k = 0; k < 6; k++) {
-    const sumA = buildSum(active, COLS, ROWS);
-    const sumC = buildSum(Array.from(covered), COLS, ROWS);
+    const sumA = buildSum(active, cols, rows);
+    const sumC = buildSum(Array.from(covered), cols, rows);
 
     let best = null, bestScore = 0;
 
-    for (let y = 0; y < ROWS; y++) {
-      for (let x = 0; x < COLS; x++) {
-        for (let h = 1; h <= Math.min(14, ROWS - y); h++) {
-          for (let w = 1; w <= Math.min(14, COLS - x); w++) {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        for (let h = 1; h <= Math.min(14, rows - y); h++) {
+          for (let w = 1; w <= Math.min(14, cols - x); w++) {
             if (w * h < 2) continue;
 
             let ok = true;
             outer: for (let r = y; r < y + h; r++) {
               for (let c = x; c < x + w; c++) {
-                if (overlap[r * COLS + c] >= 2) { ok = false; break outer; }
+                if (overlap[r * cols + c] >= 2) { ok = false; break outer; }
               }
             }
             if (!ok) continue;
@@ -784,7 +856,7 @@ export function extractBlockGroups(blocks) {
               let remain = 0;
               for (let r = e.y; r < e.y + e.h; r++) {
                 for (let c = e.x; c < e.x + e.w; c++) {
-                  const idx = r * COLS + c;
+                  const idx = r * cols + c;
                   if (overlap[idx] === 1 && !(r >= y && r < y + h && c >= x && c < x + w)) remain++;
                 }
               }
@@ -805,8 +877,8 @@ export function extractBlockGroups(blocks) {
     rects.push(best);
     for (let r = best.y; r < best.y + best.h; r++) {
       for (let c = best.x; c < best.x + best.w; c++) {
-        overlap[r * COLS + c]++;
-        covered[r * COLS + c] = 1;
+        overlap[r * cols + c]++;
+        covered[r * cols + c] = 1;
       }
     }
   }
@@ -818,15 +890,15 @@ export function extractBlockGroups(blocks) {
     // Pass 1: prefer uncovered active cells
     for (let i = 0; i < active.length && !placed; i++) {
       if (active[i] !== 1 || overlap[i] > 0) continue;
-      const r = Math.floor(i / COLS), c = i % COLS;
-      const cand = r + 1 < ROWS ? { x: c, y: r, w: 1, h: 2 }
-        : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
+      const r = Math.floor(i / cols), c = i % cols;
+      const cand = r + 1 < rows ? { x: c, y: r, w: 1, h: 2 }
+        : c + 1 < cols ? { x: c, y: r, w: 2, h: 1 }
           : null;
       if (!cand) continue;
       rects.push(cand);
       for (let rr = cand.y; rr < cand.y + cand.h; rr++)
         for (let cc = cand.x; cc < cand.x + cand.w; cc++) {
-          overlap[rr * COLS + cc]++; covered[rr * COLS + cc] = 1;
+          overlap[rr * cols + cc]++; covered[rr * cols + cc] = 1;
         }
       placed = true;
     }
@@ -835,9 +907,9 @@ export function extractBlockGroups(blocks) {
     if (!placed) {
       for (let i = 0; i < active.length && !placed; i++) {
         if (active[i] !== 1) continue;
-        const r = Math.floor(i / COLS), c = i % COLS;
-        const cand = r + 1 < ROWS ? { x: c, y: r, w: 1, h: 2 }
-          : c + 1 < COLS ? { x: c, y: r, w: 2, h: 1 }
+        const r = Math.floor(i / cols), c = i % cols;
+        const cand = r + 1 < rows ? { x: c, y: r, w: 1, h: 2 }
+          : c + 1 < cols ? { x: c, y: r, w: 2, h: 1 }
             : { x: c, y: r, w: 1, h: 1 };
         rects.push(cand);
         placed = true;
@@ -980,17 +1052,17 @@ export function assignGroupColors(rects, colorA) {
   return rects.map((_, i) => family[Math.max(0, firstIdx - i)]);
 }
 
-export function buildSVG(rects, colorA, colorB) {
-  const size = 1920;
-  const cell = size / COLS; // 120px per cell
+export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, outputWidth = 1920, outputHeight = 1920) {
+  const cellW = outputWidth / cols;
+  const cellH = outputHeight / rows;
 
   const rectEls = rects
     .map(r =>
-      `  <rect x="${r.x * cell}" y="${r.y * cell}" width="${r.w * cell}" height="${r.h * cell}" fill="${colorA}"/>`
+      `  <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}" fill="${colorA}"/>`
     )
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n  <rect x="0" y="0" width="${size}" height="${size}" fill="${colorB}"/>\n${rectEls}\n</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>\n${rectEls}\n</svg>`;
 }
 
 export async function copySVGToClipboard(svgString) {

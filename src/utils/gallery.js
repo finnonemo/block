@@ -51,12 +51,12 @@ export function mergeGalleries(shared, local) {
 
 // seed-based template (generated pattern):  { name, category, seed }
 // blocks-based template (image / painted): { name, category, blocks, colorA, colorB }
-export function addTemplate({ name, category, seed = null, blocks = null, colorA = null, colorB = null }) {
+export function addTemplate({ name, category, seed = null, blocks = null, colorA = null, colorB = null, cols = null, rows = null }) {
   const gallery = loadGallery()
   const base = { id: crypto.randomUUID(), name, category, createdAt: Date.now() }
   const t = seed
     ? { ...base, seed }
-    : { ...base, blocks, colorA, colorB }
+    : { ...base, blocks, colorA, colorB, ...(cols && rows ? { cols, rows } : {}) }
   gallery.templates = [t, ...gallery.templates]
   saveLocalGallery(gallery)
   return gallery

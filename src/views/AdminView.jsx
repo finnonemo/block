@@ -8,6 +8,8 @@ import { PatternPreview, PatternSVG } from '@/components/PatternPreview'
 import { ImageImport } from '@/components/ImageImport'
 import {
   COLS, ROWS,
+  RATIOS,
+  OUTPUT_SIZES,
   DEFAULT_PARAMS,
   COLOR_PAIRS,
   buildConfigFromParams,
@@ -19,6 +21,7 @@ import {
   createRNG,
   encodeSeed,
   decodeSeed,
+  mapBlocksGrid,
 } from '@/utils/gridUtils'
 import {
   CATEGORIES,
@@ -47,11 +50,16 @@ function makeNewSeed() {
   return (Math.random() * 0x100000000) >>> 0
 }
 
-function generateState(params, seed) {
+function generateState(params, seed, cols = COLS, rows = ROWS) {
   const rng   = createRNG(seed)
   const cfg   = buildConfigFromParams(params)
   const rects = generatePatternRects(cfg, rng)
-  return { rects, blocks: syncBlocks(rects) }
+  let blocks = syncBlocks(rects)
+  if (cols !== COLS || rows !== ROWS) {
+    blocks = mapBlocksGrid(blocks, COLS, ROWS, cols, rows)
+    return { rects: extractBlockGroups(blocks, cols, rows), blocks }
+  }
+  return { rects, blocks }
 }
 
 function initApp() {
@@ -61,10 +69,14 @@ function initApp() {
   return {
     seed,
     params,
-    colorA:     DEFAULT_PAIR.surface,
-    colorB:     DEFAULT_PAIR.background,
-    rectangles: rects,
+    colorA:      DEFAULT_PAIR.surface,
+    colorB:      DEFAULT_PAIR.background,
+    rectangles:  rects,
     blocks,
+    ratio:       '1:1',
+    gridSizeKey: '16x16',
+    cols:        COLS,
+    rows:        ROWS,
   }
 }
 
@@ -77,7 +89,7 @@ export default function AdminView({ onSwitchMode }) {
   const [dictWords, setDictWords] = useState(() => loadDictionary().words)
   const [editingWord, setEditingWord] = useState(null) // null | 'new' | word entry
 
-  const { seed, params, colorA, colorB, rectangles, blocks } = state
+  const { seed, params, colorA, colorB, rectangles, blocks, ratio, gridSizeKey, cols, rows } = state
 
   const [panelWidth, setPanelWidth] = useState(() => {
     const saved = localStorage.getItem('fnm-sidebar-width')
@@ -146,19 +158,23 @@ export default function AdminView({ onSwitchMode }) {
 
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
-    const { rects, blocks } = generateState(params, newSeed)
+    const { rects, blocks } = generateState(params, newSeed, cols, rows)
     setState(s => ({ ...s, seed: newSeed, rectangles: rects, blocks }))
-  }, [params])
+  }, [params, cols, rows])
 
   const handleParamsChange = useCallback((newParams) => {
     const newSeed = makeNewSeed()
-    const { rects, blocks } = generateState(newParams, newSeed)
-    setState(s => ({ ...s, params: newParams, seed: newSeed, rectangles: rects, blocks }))
+    setState(s => {
+      const { rects, blocks } = generateState(newParams, newSeed, s.cols, s.rows)
+      return { ...s, params: newParams, seed: newSeed, rectangles: rects, blocks }
+    })
   }, [])
 
   const handleSeedApply = useCallback(({ seed: newSeed, params: newParams, colorA: newA, colorB: newB }) => {
-    const { rects, blocks } = generateState(newParams, newSeed)
-    setState({ seed: newSeed, params: newParams, colorA: newA, colorB: newB, rectangles: rects, blocks })
+    setState(s => {
+      const { rects, blocks } = generateState(newParams, newSeed, s.cols, s.rows)
+      return { ...s, seed: newSeed, params: newParams, colorA: newA, colorB: newB, rectangles: rects, blocks }
+    })
   }, [])
 
   const handleColorAChange = useCallback(hex => setState(s => ({ ...s, colorA: hex })), [])
@@ -169,39 +185,77 @@ export default function AdminView({ onSwitchMode }) {
       if (s.blocks[idx] === color) return s
       const newBlocks = [...s.blocks]
       newBlocks[idx]  = color
-      const newRects  = extractBlockGroups(newBlocks)
+      const newRects  = extractBlockGroups(newBlocks, s.cols, s.rows)
       return { ...s, blocks: newBlocks, rectangles: newRects }
     })
   }, [])
 
   const handleClear = useCallback(() => {
-    setState(s => ({ ...s, blocks: Array(COLS * ROWS).fill(1), rectangles: [] }))
+    setState(s => ({ ...s, blocks: Array(s.cols * s.rows).fill(1), rectangles: [] }))
   }, [])
 
   const handleImageApply = useCallback(({ blocks, colorA: newA, colorB: newB }) => {
-    const newRects = extractBlockGroups(blocks)
-    setState(s => ({
-      ...s,
-      seed: null,          // null seed signals image/manual canvas — not seed-regenerable
-      blocks,
-      rectangles: newRects,
-      ...(newA ? { colorA: newA } : {}),
-      ...(newB ? { colorB: newB } : {}),
-    }))
+    setState(s => {
+      const mapped  = (s.cols !== COLS || s.rows !== ROWS)
+        ? mapBlocksGrid(blocks, COLS, ROWS, s.cols, s.rows)
+        : blocks
+      const newRects = extractBlockGroups(mapped, s.cols, s.rows)
+      return {
+        ...s,
+        seed: null,          // null seed signals image/manual canvas — not seed-regenerable
+        blocks: mapped,
+        rectangles: newRects,
+        ...(newA ? { colorA: newA } : {}),
+        ...(newB ? { colorB: newB } : {}),
+      }
+    })
     setSidebarTab('params')
   }, [])
 
   const handleCopy = useCallback(async () => {
     if (rectangles.length === 0) return
     try {
-      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB))
+      const { width, height } = OUTPUT_SIZES[ratio]
+      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB, cols, rows, width, height))
       setCopyStatus('success')
       setTimeout(() => setCopyStatus('idle'), 2000)
     } catch {
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
-  }, [rectangles, colorA, colorB])
+  }, [rectangles, colorA, colorB, ratio, cols, rows])
+
+  const handleRatioChange = useCallback((newRatio) => {
+    setState(s => {
+      const gridOption = RATIOS[newRatio][0]
+      const newBlocks = mapBlocksGrid(s.blocks, s.cols, s.rows, gridOption.cols, gridOption.rows)
+      return {
+        ...s,
+        ratio: newRatio,
+        gridSizeKey: gridOption.key,
+        cols: gridOption.cols,
+        rows: gridOption.rows,
+        blocks: newBlocks,
+        rectangles: extractBlockGroups(newBlocks, gridOption.cols, gridOption.rows),
+      }
+    })
+  }, [])
+
+  const handleGridSizeChange = useCallback((newKey) => {
+    setState(s => {
+      const gridOption = RATIOS[s.ratio].find(o => o.key === newKey)
+      if (!gridOption) return s
+      const newBlocks = mapBlocksGrid(s.blocks, s.cols, s.rows, gridOption.cols, gridOption.rows)
+      return {
+        ...s,
+        gridSizeKey: gridOption.key,
+        cols: gridOption.cols,
+        rows: gridOption.rows,
+        blocks: newBlocks,
+        rectangles: extractBlockGroups(newBlocks, gridOption.cols, gridOption.rows),
+      }
+    })
+  }, [])
 
   const handleSaveWord = useCallback((entry) => {
     let newDict
@@ -243,12 +297,12 @@ export default function AdminView({ onSwitchMode }) {
       newGallery = addTemplate({ name, category, seed: currentSeed })
     } else {
       // Image-derived or hand-painted: save the actual blocks + colors
-      newGallery = addTemplate({ name, category, blocks, colorA, colorB })
+      newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows })
     }
     setGallery(newGallery)
     setSaveModal(false)
     setSidebarTab('gallery')
-  }, [currentSeed, blocks, colorA, colorB])
+  }, [currentSeed, blocks, colorA, colorB, cols, rows])
 
   const handleDeleteTemplate = useCallback((id) => {
     const newGallery = removeTemplate(id)
@@ -280,7 +334,11 @@ export default function AdminView({ onSwitchMode }) {
       handleSeedApply(decoded)
     } else if (template.blocks) {
       // Blocks-based: restore directly
-      const newRects = extractBlockGroups(template.blocks)
+      const tCols = template.cols ?? COLS
+      const tRows = template.rows ?? ROWS
+      const newRects = extractBlockGroups(template.blocks, tCols, tRows)
+      const ratioEntry = Object.entries(RATIOS).find(([, opts]) =>
+        opts.some(o => o.cols === tCols && o.rows === tRows))
       setState(s => ({
         ...s,
         seed: null,
@@ -288,6 +346,10 @@ export default function AdminView({ onSwitchMode }) {
         rectangles: newRects,
         colorA: template.colorA ?? s.colorA,
         colorB: template.colorB ?? s.colorB,
+        cols: tCols,
+        rows: tRows,
+        ratio: ratioEntry ? ratioEntry[0] : s.ratio,
+        gridSizeKey: ratioEntry ? ratioEntry[1].find(o => o.cols === tCols && o.rows === tRows).key : s.gridSizeKey,
       }))
     }
     setSidebarTab('params')
@@ -303,7 +365,7 @@ export default function AdminView({ onSwitchMode }) {
           </div>
           <div>
             <span className="font-semibold text-sm text-foreground">Pattern Builder</span>
-            <span className="ml-2 text-caption-1 text-muted-foreground">Admin · 16×16</span>
+            <span className="ml-2 text-caption-1 text-muted-foreground">Admin · {cols}×{rows}</span>
           </div>
         </div>
         <button
@@ -325,6 +387,8 @@ export default function AdminView({ onSwitchMode }) {
             rectangles={rectangles}
             colorA={colorA}
             colorB={colorB}
+            cols={cols}
+            rows={rows}
             onPaint={handlePaint}
           />
         </main>
@@ -370,6 +434,13 @@ export default function AdminView({ onSwitchMode }) {
 
             {sidebarTab === 'params' && (
               <div className="p-4 space-y-5">
+                <AspectRatioPanel
+                  ratio={ratio}
+                  gridSizeKey={gridSizeKey}
+                  onRatioChange={handleRatioChange}
+                  onGridSizeChange={handleGridSizeChange}
+                />
+
                 <ParameterPanel
                   params={params}
                   colorA={colorA}
@@ -480,6 +551,8 @@ export default function AdminView({ onSwitchMode }) {
           blocks={currentSeed ? null : blocks}
           colorA={colorA}
           colorB={colorB}
+          cols={cols}
+          rows={rows}
         />
       )}
     </div>
@@ -488,22 +561,23 @@ export default function AdminView({ onSwitchMode }) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CanvasArea({ blocks, rectangles, colorA, colorB, onPaint }) {
+function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint }) {
   const containerRef = useRef(null)
   const [canvasSize, setCanvasSize] = useState(512)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+    const longSide = Math.max(cols, rows)
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
       const available = Math.min(width, height - 28)
-      const snapped = Math.min(512, Math.floor(available / 16) * 16)
+      const snapped = Math.min(512, Math.floor(available / longSide) * longSide)
       setCanvasSize(Math.max(snapped, 128))
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [cols, rows])
 
   return (
     <div ref={containerRef} className="w-full h-full flex flex-col items-center justify-center gap-2">
@@ -513,6 +587,8 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, onPaint }) {
         rectangles={rectangles}
         colorA={colorA}
         colorB={colorB}
+        cols={cols}
+        rows={rows}
         onPaint={onPaint}
       />
       <p className="text-caption-1 text-muted-foreground shrink-0">
@@ -531,6 +607,46 @@ function SectionLabel({ children }) {
 }
 
 
+
+function AspectRatioPanel({ ratio, gridSizeKey, onRatioChange, onGridSizeChange }) {
+  return (
+    <div>
+      <SectionLabel>Aspect Ratio</SectionLabel>
+      <div className="grid grid-cols-4 gap-1.5 mb-2">
+        {Object.keys(RATIOS).map(r => (
+          <button
+            key={r}
+            onClick={() => onRatioChange(r)}
+            className={cn(
+              'py-1.5 rounded text-caption-2 font-semibold border transition-all',
+              ratio === r
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-muted text-muted-foreground border-border hover:border-ring'
+            )}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        {RATIOS[ratio].map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => onGridSizeChange(opt.key)}
+            className={cn(
+              'flex-1 py-1.5 rounded text-caption-2 font-semibold border transition-all',
+              gridSizeKey === opt.key
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-muted text-muted-foreground border-border hover:border-ring'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function SeedPanel({ seed, params, colorA, colorB, onApply }) {
   const [input, setInput]   = useState('')
@@ -749,6 +865,8 @@ function GalleryCard({ template, onLoad, onDelete }) {
           blocks={template.blocks}
           colorA={template.colorA}
           colorB={template.colorB}
+          cols={template.cols}
+          rows={template.rows}
           size={40}
         />
       </div>
@@ -776,7 +894,7 @@ function GalleryCard({ template, onLoad, onDelete }) {
 
 // ─── Save Modal ───────────────────────────────────────────────────────────────
 
-function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
+function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB, cols, rows }) {
   const [name, setName]         = useState('')
   const [category, setCategory] = useState('foundation')
 
@@ -793,7 +911,7 @@ function SaveModal({ onSave, onClose, seed, blocks, colorA, colorB }) {
         {/* Pattern preview */}
         <div className="flex justify-center">
           <div className="rounded-lg overflow-hidden border border-border">
-            <PatternPreview seed={seed} blocks={blocks} colorA={colorA} colorB={colorB} size={120} />
+            <PatternPreview seed={seed} blocks={blocks} colorA={colorA} colorB={colorB} cols={cols} rows={rows} size={120} />
           </div>
         </div>
 

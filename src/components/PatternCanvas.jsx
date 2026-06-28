@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { COLS, ROWS } from '@/utils/gridUtils'
+import { COLS as DEFAULT_COLS, ROWS as DEFAULT_ROWS } from '@/utils/gridUtils'
 
 function getCornerMarkers(rectangles, cellSize) {
   const markers = [];
@@ -134,11 +134,14 @@ function getEdgeMarkers(rectangles, cellSize) {
   return markers;
 }
 
-export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint, size = 512 }) {
-  // Snap to nearest multiple of COLS so cells are always integer pixels
-  const snapped   = Math.floor(size / COLS) * COLS
-  const cellSize  = snapped / COLS
-  const gridSize  = snapped
+export function PatternCanvas({
+  blocks, rectangles = [], colorA, colorB, onPaint,
+  size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS,
+}) {
+  // Snap cell size so cells are always integer pixels on both axes
+  const cellSize  = Math.max(1, Math.floor(size / Math.max(cols, rows)))
+  const gridWidth  = cellSize * cols
+  const gridHeight = cellSize * rows
 
   const canvasRef      = useRef(null)
   const isPainting     = useRef(false)
@@ -158,9 +161,9 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
     const rect = el.getBoundingClientRect()
     const col  = Math.floor((clientX - rect.left)  / cellSize)
     const row  = Math.floor((clientY - rect.top)   / cellSize)
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return -1
-    return row * COLS + col
-  }, [cellSize])
+    if (col < 0 || col >= cols || row < 0 || row >= rows) return -1
+    return row * cols + col
+  }, [cellSize, cols, rows])
 
   // Global listeners while painting — prevents any scroll outside the canvas
   useEffect(() => {
@@ -214,8 +217,8 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
       ref={canvasRef}
       className="relative select-none rounded-sm overflow-hidden shadow-2xl ring-1 ring-white/10"
       style={{
-        width: gridSize,
-        height: gridSize,
+        width: gridWidth,
+        height: gridHeight,
         flexShrink: 0,
         cursor: 'crosshair',
         touchAction: 'none',      // block native touch scroll
@@ -232,8 +235,8 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
       {/* Active cells (Color A) */}
       {blocks.map((v, i) => {
         if (v !== 0) return null
-        const col = i % COLS
-        const row = Math.floor(i / COLS)
+        const col = i % cols
+        const row = Math.floor(i / cols)
         return (
           <div
             key={i}
@@ -253,7 +256,7 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
       {/* Grid lines, connection area markers, and block borders */}
       <svg
         className="absolute inset-0 pointer-events-none"
-        width={gridSize} height={gridSize}
+        width={gridWidth} height={gridHeight}
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Block Borders (outlines) to see overlapping areas */}
@@ -276,19 +279,19 @@ export function PatternCanvas({ blocks, rectangles = [], colorA, colorB, onPaint
         {isHovered && getEdgeMarkers(rectangles, cellSize)}
 
         {/* Grid lines */}
-        {Array.from({ length: COLS + 1 }, (_, i) => (
+        {Array.from({ length: cols + 1 }, (_, i) => (
           <line
             key={`v${i}`}
             x1={i * cellSize} y1={0}
-            x2={i * cellSize} y2={gridSize}
+            x2={i * cellSize} y2={gridHeight}
             stroke="rgba(255,255,255,0.07)" strokeWidth="0.5"
           />
         ))}
-        {Array.from({ length: ROWS + 1 }, (_, i) => (
+        {Array.from({ length: rows + 1 }, (_, i) => (
           <line
             key={`h${i}`}
             x1={0} y1={i * cellSize}
-            x2={gridSize} y2={i * cellSize}
+            x2={gridWidth} y2={i * cellSize}
             stroke="rgba(255,255,255,0.07)" strokeWidth="0.5"
           />
         ))}
