@@ -47,6 +47,45 @@ import {
 } from '@/utils/dictionary'
 
 const DEFAULT_PAIR = COLOR_PAIRS[0] // Green / Navy
+const NORM = 160 // SVG normalized width (matches gridUtils.js)
+
+// Measure the widest line of text using a canvas 2D context (browser API).
+// Returns width in the same units as fontSizePx (SVG normalized units).
+function measureMaxLineWidth(content, fontFamily, fontWeight, fontStyle, fontSizePx) {
+  try {
+    const cvs = document.createElement('canvas')
+    const ctx = cvs.getContext('2d')
+    ctx.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${fontFamily}`
+    return Math.max(...content.split('\n').map(l => ctx.measureText(l || ' ').width))
+  } catch {
+    return 0
+  }
+}
+
+// If textOverlay overflows the new grid (horizontally or vertically), scale
+// fontSize down until it fits. Returns the (possibly updated) overlay object.
+function fitTextToGrid(overlay, cols, rows) {
+  if (!overlay?.content) return overlay
+  const normH = NORM * rows / cols
+  const fontSizePx = overlay.fontSize * normH
+  const lineHeight = fontSizePx * 1.25
+  const lines = overlay.content.split('\n')
+
+  const lineWidth = measureMaxLineWidth(
+    overlay.content, overlay.fontFamily, overlay.fontWeight, overlay.fontStyle, fontSizePx
+  )
+  const totalTextHeight = lines.length * lineHeight
+
+  const maxW = NORM   * 0.95
+  const maxH = normH  * 0.95
+
+  let scale = 1
+  if (lineWidth  > maxW) scale = Math.min(scale, maxW / lineWidth)
+  if (totalTextHeight > maxH) scale = Math.min(scale, maxH / totalTextHeight)
+
+  if (scale >= 1) return overlay
+  return { ...overlay, fontSize: Math.max(0.03, overlay.fontSize * scale) }
+}
 
 function makeNewSeed() {
   return (Math.random() * 0x100000000) >>> 0
@@ -239,8 +278,8 @@ export default function AdminView({ onSwitchMode }) {
   }, [rectangles, colorA, colorB, ratio, cols, rows, imageOverlay, textOverlay])
 
   const handleRatioChange = useCallback((newRatio) => {
+    const gridOption = RATIOS[newRatio][0]
     setState(s => {
-      const gridOption = RATIOS[newRatio][0]
       const newBlocks = mapBlocksGrid(s.blocks, s.cols, s.rows, gridOption.cols, gridOption.rows)
       return {
         ...s,
@@ -252,12 +291,13 @@ export default function AdminView({ onSwitchMode }) {
         rectangles: extractBlockGroups(newBlocks, gridOption.cols, gridOption.rows),
       }
     })
+    setTextOverlay(prev => fitTextToGrid(prev, gridOption.cols, gridOption.rows))
   }, [])
 
   const handleGridSizeChange = useCallback((newKey) => {
+    const gridOption = RATIOS[ratio].find(o => o.key === newKey)
+    if (!gridOption) return
     setState(s => {
-      const gridOption = RATIOS[s.ratio].find(o => o.key === newKey)
-      if (!gridOption) return s
       const newBlocks = mapBlocksGrid(s.blocks, s.cols, s.rows, gridOption.cols, gridOption.rows)
       return {
         ...s,
@@ -268,7 +308,8 @@ export default function AdminView({ onSwitchMode }) {
         rectangles: extractBlockGroups(newBlocks, gridOption.cols, gridOption.rows),
       }
     })
-  }, [])
+    setTextOverlay(prev => fitTextToGrid(prev, gridOption.cols, gridOption.rows))
+  }, [ratio])
 
   const handleSaveWord = useCallback((entry) => {
     let newDict
