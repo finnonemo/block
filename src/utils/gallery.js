@@ -53,12 +53,12 @@ export function mergeGalleries(shared, local) {
 // blocks-based template (image / painted):   { name, category, blocks, colorA, colorB }
 // Note: imageOverlay.dataUrl embeds a base64 image — templates with image fills are
 // local-only; the shared gallery.json deployment is unsuitable for large image payloads.
-export function addTemplate({ name, category, seed = null, blocks = null, colorA = null, colorB = null, cols = null, rows = null, imageOverlay = null }) {
+export function addTemplate({ name, category, seed = null, blocks = null, colorA = null, colorB = null, cols = null, rows = null, imageOverlay = null, textOverlay = null }) {
   const gallery = loadGallery()
   const base = { id: crypto.randomUUID(), name, category, createdAt: Date.now() }
   const t = seed
-    ? { ...base, seed }
-    : { ...base, blocks, colorA, colorB, ...(cols && rows ? { cols, rows } : {}), ...(imageOverlay ? { imageOverlay } : {}) }
+    ? { ...base, seed, ...(textOverlay ? { textOverlay } : {}) }
+    : { ...base, blocks, colorA, colorB, ...(cols && rows ? { cols, rows } : {}), ...(imageOverlay ? { imageOverlay } : {}), ...(textOverlay ? { textOverlay } : {}) }
   gallery.templates = [t, ...gallery.templates]
   saveLocalGallery(gallery)
   return gallery

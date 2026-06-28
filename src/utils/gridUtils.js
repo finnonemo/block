@@ -1052,7 +1052,7 @@ export function assignGroupColors(rects, colorA) {
   return rects.map((_, i) => family[Math.max(0, firstIdx - i)]);
 }
 
-export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, outputWidth = 1920, outputHeight = 1920, imageOverlay = null) {
+export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, outputWidth = 1920, outputHeight = 1920, imageOverlay = null, textOverlay = null) {
   const cellW = outputWidth / cols;
   const cellH = outputHeight / rows;
 
@@ -1062,8 +1062,21 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
     )
     .join('\n');
 
+  const textEl = textOverlay?.content
+    ? `  <text x="${textOverlay.x * outputWidth}" y="${textOverlay.y * outputHeight}" ` +
+      `font-size="${textOverlay.fontSize * outputHeight}" font-family="${textOverlay.fontFamily}" ` +
+      `font-weight="${textOverlay.fontWeight}" font-style="${textOverlay.fontStyle}" ` +
+      `fill="${textOverlay.color}" opacity="${textOverlay.opacity}" ` +
+      `text-anchor="${textOverlay.textAnchor}" dominant-baseline="middle">${textOverlay.content}</text>`
+    : '';
+
   if (!imageOverlay) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>\n${rectEls}\n</svg>`;
+    const body = [
+      `  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>`,
+      rectEls,
+      textEl,
+    ].filter(Boolean).join('\n');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n${body}\n</svg>`;
   }
 
   const clipRects = rects
@@ -1086,6 +1099,7 @@ ${clipRects}
   <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>
 ${rectEls}
   <image href="${d}" xlink:href="${d}" x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}" clip-path="url(#fnm-clip)" opacity="${imgOp}" preserveAspectRatio="none"/>
+${textEl}
 </svg>`;
 }
 

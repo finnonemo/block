@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid, Download, Upload, BookMarked, Plus, Pencil } from 'lucide-react'
+import { Copy, Check, RefreshCw, Layers, Save, BookOpen, X, Trash2, Users, LayoutGrid, Download, Upload, BookMarked, Plus, Pencil, Type } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PatternCanvas } from '@/components/PatternCanvas'
@@ -7,6 +7,7 @@ import { ParameterPanel } from '@/components/ParameterPanel'
 import { PatternPreview, PatternSVG } from '@/components/PatternPreview'
 import { ImageImport } from '@/components/ImageImport'
 import { ImageOverlayPanel } from '@/components/ImageOverlayPanel'
+import { TextOverlayPanel } from '@/components/TextOverlayPanel'
 import {
   COLS, ROWS,
   RATIOS,
@@ -87,6 +88,7 @@ export default function AdminView({ onSwitchMode }) {
   const [sidebarTab, setSidebarTab] = useState('params') // 'params' | 'gallery' | 'image' | 'dictionary'
   const [imageSidebarTab, setImageSidebarTab] = useState('fill') // 'fill' | 'convert'
   const [imageOverlay, setImageOverlay] = useState(null)
+  const [textOverlay, setTextOverlay] = useState(null)
   const [gallery, setGallery]    = useState(loadGallery)
   const [saveModal, setSaveModal] = useState(false)
   const [dictWords, setDictWords] = useState(() => loadDictionary().words)
@@ -201,6 +203,10 @@ export default function AdminView({ onSwitchMode }) {
     setImageOverlay(overlay)
   }, [])
 
+  const handleTextOverlayChange = useCallback((overlay) => {
+    setTextOverlay(overlay)
+  }, [])
+
   const handleImageApply = useCallback(({ blocks, colorA: newA, colorB: newB }) => {
     setState(s => {
       const mapped  = (s.cols !== COLS || s.rows !== ROWS)
@@ -223,14 +229,14 @@ export default function AdminView({ onSwitchMode }) {
     if (rectangles.length === 0) return
     try {
       const { width, height } = OUTPUT_SIZES[ratio]
-      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB, cols, rows, width, height, imageOverlay))
+      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB, cols, rows, width, height, imageOverlay, textOverlay))
       setCopyStatus('success')
       setTimeout(() => setCopyStatus('idle'), 2000)
     } catch {
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
-  }, [rectangles, colorA, colorB, ratio, cols, rows, imageOverlay])
+  }, [rectangles, colorA, colorB, ratio, cols, rows, imageOverlay, textOverlay])
 
   const handleRatioChange = useCallback((newRatio) => {
     setState(s => {
@@ -304,9 +310,9 @@ export default function AdminView({ onSwitchMode }) {
     try {
       let newGallery
       if (currentSeed) {
-        newGallery = addTemplate({ name, category, seed: currentSeed })
+        newGallery = addTemplate({ name, category, seed: currentSeed, textOverlay })
       } else {
-        newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows, imageOverlay })
+        newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay })
       }
       setGallery(newGallery)
       setSaveModal(false)
@@ -317,7 +323,7 @@ export default function AdminView({ onSwitchMode }) {
         setSaveError('Image too large to save locally — export gallery instead.')
       }
     }
-  }, [currentSeed, blocks, colorA, colorB, cols, rows, imageOverlay])
+  }, [currentSeed, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay])
 
   const handleDeleteTemplate = useCallback((id) => {
     const newGallery = removeTemplate(id)
@@ -366,6 +372,7 @@ export default function AdminView({ onSwitchMode }) {
       }))
     }
     setImageOverlay(template.imageOverlay ?? null)
+    setTextOverlay(template.textOverlay ?? null)
     setSidebarTab('params')
   }, [handleSeedApply])
 
@@ -405,6 +412,7 @@ export default function AdminView({ onSwitchMode }) {
             rows={rows}
             onPaint={handlePaint}
             imageOverlay={imageOverlay}
+            textOverlay={textOverlay}
           />
         </main>
 
@@ -421,6 +429,7 @@ export default function AdminView({ onSwitchMode }) {
               { id: 'params',     label: 'Params',  Icon: Layers,      badge: null },
               { id: 'gallery',    label: 'Gallery', Icon: BookOpen,    badge: gallery.templates.length || null },
               { id: 'image',      label: 'Image',   Icon: LayoutGrid,  badge: null },
+              { id: 'text',       label: 'Text',    Icon: Type,        badge: textOverlay ? 1 : null },
               { id: 'dictionary', label: 'Dict',    Icon: BookMarked,  badge: dictWords.length || null },
             ].map(({ id, label, Icon, badge }) => (
               <button
@@ -519,6 +528,10 @@ export default function AdminView({ onSwitchMode }) {
               </div>
             )}
 
+            {sidebarTab === 'text' && (
+              <TextOverlayPanel textOverlay={textOverlay} onTextOverlayChange={handleTextOverlayChange} />
+            )}
+
             {sidebarTab === 'dictionary' && (
               editingWord != null ? (
                 <DictWordEditor
@@ -604,7 +617,7 @@ export default function AdminView({ onSwitchMode }) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, imageOverlay }) {
+function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, imageOverlay, textOverlay }) {
   const containerRef = useRef(null)
   const [canvasSize, setCanvasSize] = useState(512)
 
@@ -634,6 +647,7 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, i
         rows={rows}
         onPaint={onPaint}
         imageOverlay={imageOverlay}
+        textOverlay={textOverlay}
       />
       <p className="text-caption-1 text-muted-foreground shrink-0">
         Click or drag to paint · Block groups auto-update

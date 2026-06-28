@@ -136,7 +136,7 @@ function getEdgeMarkers(rectangles, cellSize) {
 
 export function PatternCanvas({
   blocks, rectangles = [], colorA, colorB, onPaint,
-  size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS, imageOverlay = null,
+  size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS, imageOverlay = null, textOverlay = null,
 }) {
   // Snap cell size so cells are always integer pixels on both axes
   const cellSize  = Math.max(1, Math.floor(size / Math.max(cols, rows)))
@@ -323,6 +323,24 @@ export function PatternCanvas({
             stroke="rgba(255,255,255,0.07)" strokeWidth="0.5"
           />
         ))}
+
+        {/* Text overlay — topmost layer */}
+        {textOverlay?.content && (
+          <text
+            x={textOverlay.x * gridWidth}
+            y={textOverlay.y * gridHeight}
+            fontSize={textOverlay.fontSize * gridHeight}
+            fontFamily={textOverlay.fontFamily}
+            fontWeight={textOverlay.fontWeight}
+            fontStyle={textOverlay.fontStyle}
+            fill={textOverlay.color}
+            opacity={textOverlay.opacity}
+            textAnchor={textOverlay.textAnchor}
+            dominantBaseline="middle"
+          >
+            {textOverlay.content}
+          </text>
+        )}
       </svg>
     </div>
   )

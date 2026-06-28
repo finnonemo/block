@@ -39,7 +39,7 @@ function resolve({ seed, blocks, colorA, colorB, cols = COLS, rows = ROWS }) {
 // Normalized coordinate space — lets SVG scale via CSS without recalculating coords
 const NORM = 160
 
-export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 120, style, className, imageOverlay = null }) {
+export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 120, style, className, imageOverlay = null, textOverlay = null }) {
   const clipId = useRef('ps-' + Math.random().toString(36).slice(2)).current
   const normH = NORM * rows / cols
   const cellW = NORM / cols
@@ -81,12 +81,28 @@ export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, si
           preserveAspectRatio="none"
         />
       )}
+      {textOverlay?.content && (
+        <text
+          x={textOverlay.x * NORM}
+          y={textOverlay.y * normH}
+          fontSize={textOverlay.fontSize * normH}
+          fontFamily={textOverlay.fontFamily}
+          fontWeight={textOverlay.fontWeight}
+          fontStyle={textOverlay.fontStyle}
+          fill={textOverlay.color}
+          opacity={textOverlay.opacity}
+          textAnchor={textOverlay.textAnchor}
+          dominantBaseline="middle"
+        >
+          {textOverlay.content}
+        </text>
+      )}
     </svg>
   )
 }
 
 // 2×2 tiled preview — each tile is the full pattern at half size
-export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 240, style, className, imageOverlay = null }) {
+export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 240, style, className, imageOverlay = null, textOverlay = null }) {
   const clipBase = useRef('qp-' + Math.random().toString(36).slice(2)).current
   const cellW = NORM / cols
   const normH = NORM * rows / cols
@@ -157,6 +173,29 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
           />
         )
       })}
+
+      {/* Text overlays at absolute positions — one per tile */}
+      {textOverlay?.content && [0, 1, 2, 3].map(i => {
+        const tx = (i % 2) * NORM
+        const ty = Math.floor(i / 2) * normH
+        return (
+          <text
+            key={i}
+            x={tx + textOverlay.x * NORM}
+            y={ty + textOverlay.y * normH}
+            fontSize={textOverlay.fontSize * normH}
+            fontFamily={textOverlay.fontFamily}
+            fontWeight={textOverlay.fontWeight}
+            fontStyle={textOverlay.fontStyle}
+            fill={textOverlay.color}
+            opacity={textOverlay.opacity}
+            textAnchor={textOverlay.textAnchor}
+            dominantBaseline="middle"
+          >
+            {textOverlay.content}
+          </text>
+        )
+      })}
     </svg>
   )
 }
@@ -164,20 +203,20 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
 // ─── Convenience wrappers ─────────────────────────────────────────────────────
 // Accept either a seed string OR blocks+colorA+colorB for image-derived patterns.
 
-export function PatternPreview({ seed, blocks, colorA, colorB, cols, rows, size = 80, imageOverlay = null }) {
+export function PatternPreview({ seed, blocks, colorA, colorB, cols, rows, size = 80, imageOverlay = null, textOverlay = null }) {
   const data = useMemo(
     () => resolve({ seed, blocks, colorA, colorB, cols, rows }),
     [seed, blocks, colorA, colorB, cols, rows]
   )
   if (!data) return <div style={{ width: size, height: size }} className="bg-muted rounded" />
-  return <PatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} cols={data.cols} rows={data.rows} size={size} imageOverlay={imageOverlay} />
+  return <PatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} cols={data.cols} rows={data.rows} size={size} imageOverlay={imageOverlay} textOverlay={textOverlay} />
 }
 
-export function QuadPatternPreview({ seed, blocks, colorA, colorB, cols, rows, size = 160, imageOverlay = null }) {
+export function QuadPatternPreview({ seed, blocks, colorA, colorB, cols, rows, size = 160, imageOverlay = null, textOverlay = null }) {
   const data = useMemo(
     () => resolve({ seed, blocks, colorA, colorB, cols, rows }),
     [seed, blocks, colorA, colorB, cols, rows]
   )
   if (!data) return <div style={{ width: size, height: size }} className="bg-muted rounded" />
-  return <QuadPatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} cols={data.cols} rows={data.rows} size={size} imageOverlay={imageOverlay} />
+  return <QuadPatternSVG rects={data.rects} colorA={data.colorA} colorB={data.colorB} cols={data.cols} rows={data.rows} size={size} imageOverlay={imageOverlay} textOverlay={textOverlay} />
 }
