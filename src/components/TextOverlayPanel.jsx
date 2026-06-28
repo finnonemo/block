@@ -109,10 +109,11 @@ export function TextOverlayPanel({ textOverlay, onTextOverlayChange }) {
       {/* Header: editable text + remove */}
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <input
+          <textarea
             value={textOverlay.content}
             onChange={e => set('content', e.target.value)}
-            className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-footnote text-foreground focus:outline-none focus:border-ring transition-colors"
+            rows={Math.min(5, textOverlay.content.split('\n').length + 1)}
+            className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-footnote text-foreground focus:outline-none focus:border-ring transition-colors resize-none"
             placeholder="Text content…"
           />
         </div>

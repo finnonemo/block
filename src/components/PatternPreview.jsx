@@ -81,22 +81,28 @@ export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, si
           preserveAspectRatio="none"
         />
       )}
-      {textOverlay?.content && (
-        <text
-          x={textOverlay.x * NORM}
-          y={textOverlay.y * normH}
-          fontSize={textOverlay.fontSize * normH}
-          fontFamily={textOverlay.fontFamily}
-          fontWeight={textOverlay.fontWeight}
-          fontStyle={textOverlay.fontStyle}
-          fill={textOverlay.color}
-          opacity={textOverlay.opacity}
-          textAnchor={textOverlay.textAnchor}
-          dominantBaseline="middle"
-        >
-          {textOverlay.content}
-        </text>
-      )}
+      {textOverlay?.content && (() => {
+        const tx = textOverlay.x * NORM
+        const ty = textOverlay.y * normH
+        const lh = textOverlay.fontSize * normH * 1.25
+        return (
+          <text
+            x={tx} y={ty}
+            fontSize={textOverlay.fontSize * normH}
+            fontFamily={textOverlay.fontFamily}
+            fontWeight={textOverlay.fontWeight}
+            fontStyle={textOverlay.fontStyle}
+            fill={textOverlay.color}
+            opacity={textOverlay.opacity}
+            textAnchor={textOverlay.textAnchor}
+            dominantBaseline="auto"
+          >
+            {textOverlay.content.split('\n').map((line, i) => (
+              <tspan key={i} x={tx} dy={i === 0 ? 0 : lh}>{line || ' '}</tspan>
+            ))}
+          </text>
+        )
+      })()}
     </svg>
   )
 }
@@ -176,13 +182,13 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
 
       {/* Text overlays at absolute positions — one per tile */}
       {textOverlay?.content && [0, 1, 2, 3].map(i => {
-        const tx = (i % 2) * NORM
-        const ty = Math.floor(i / 2) * normH
+        const tx = (i % 2) * NORM + textOverlay.x * NORM
+        const ty = Math.floor(i / 2) * normH + textOverlay.y * normH
+        const lh = textOverlay.fontSize * normH * 1.25
         return (
           <text
             key={i}
-            x={tx + textOverlay.x * NORM}
-            y={ty + textOverlay.y * normH}
+            x={tx} y={ty}
             fontSize={textOverlay.fontSize * normH}
             fontFamily={textOverlay.fontFamily}
             fontWeight={textOverlay.fontWeight}
@@ -190,9 +196,11 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
             fill={textOverlay.color}
             opacity={textOverlay.opacity}
             textAnchor={textOverlay.textAnchor}
-            dominantBaseline="middle"
+            dominantBaseline="auto"
           >
-            {textOverlay.content}
+            {textOverlay.content.split('\n').map((line, j) => (
+              <tspan key={j} x={tx} dy={j === 0 ? 0 : lh}>{line || ' '}</tspan>
+            ))}
           </text>
         )
       })}

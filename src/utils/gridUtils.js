@@ -1062,13 +1062,20 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
     )
     .join('\n');
 
-  const textEl = textOverlay?.content
-    ? `  <text x="${textOverlay.x * outputWidth}" y="${textOverlay.y * outputHeight}" ` +
-      `font-size="${textOverlay.fontSize * outputHeight}" font-family="${textOverlay.fontFamily}" ` +
+  const textEl = (() => {
+    if (!textOverlay?.content) return '';
+    const tx = textOverlay.x * outputWidth;
+    const ty = textOverlay.y * outputHeight;
+    const fs = textOverlay.fontSize * outputHeight;
+    const lh = fs * 1.25;
+    const tspans = textOverlay.content.split('\n').map((line, i) =>
+      `<tspan x="${tx}" dy="${i === 0 ? 0 : lh}">${line || ' '}</tspan>`
+    ).join('');
+    return `  <text x="${tx}" y="${ty}" font-size="${fs}" font-family="${textOverlay.fontFamily}" ` +
       `font-weight="${textOverlay.fontWeight}" font-style="${textOverlay.fontStyle}" ` +
       `fill="${textOverlay.color}" opacity="${textOverlay.opacity}" ` +
-      `text-anchor="${textOverlay.textAnchor}" dominant-baseline="middle">${textOverlay.content}</text>`
-    : '';
+      `text-anchor="${textOverlay.textAnchor}" dominant-baseline="auto">${tspans}</text>`;
+  })();;
 
   if (!imageOverlay) {
     const body = [

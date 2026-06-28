@@ -325,22 +325,28 @@ export function PatternCanvas({
         ))}
 
         {/* Text overlay — topmost layer */}
-        {textOverlay?.content && (
-          <text
-            x={textOverlay.x * gridWidth}
-            y={textOverlay.y * gridHeight}
-            fontSize={textOverlay.fontSize * gridHeight}
-            fontFamily={textOverlay.fontFamily}
-            fontWeight={textOverlay.fontWeight}
-            fontStyle={textOverlay.fontStyle}
-            fill={textOverlay.color}
-            opacity={textOverlay.opacity}
-            textAnchor={textOverlay.textAnchor}
-            dominantBaseline="middle"
-          >
-            {textOverlay.content}
-          </text>
-        )}
+        {textOverlay?.content && (() => {
+          const tx = textOverlay.x * gridWidth
+          const ty = textOverlay.y * gridHeight
+          const lh = textOverlay.fontSize * gridHeight * 1.25
+          return (
+            <text
+              x={tx} y={ty}
+              fontSize={textOverlay.fontSize * gridHeight}
+              fontFamily={textOverlay.fontFamily}
+              fontWeight={textOverlay.fontWeight}
+              fontStyle={textOverlay.fontStyle}
+              fill={textOverlay.color}
+              opacity={textOverlay.opacity}
+              textAnchor={textOverlay.textAnchor}
+              dominantBaseline="auto"
+            >
+              {textOverlay.content.split('\n').map((line, i) => (
+                <tspan key={i} x={tx} dy={i === 0 ? 0 : lh}>{line || ' '}</tspan>
+              ))}
+            </text>
+          )
+        })()}
       </svg>
     </div>
   )
