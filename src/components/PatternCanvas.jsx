@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { COLS as DEFAULT_COLS, ROWS as DEFAULT_ROWS } from '@/utils/gridUtils'
 
 function getCornerMarkers(rectangles, cellSize) {
@@ -145,6 +145,7 @@ export function PatternCanvas({
 
   const clipId     = useRef('cc-' + Math.random().toString(36).slice(2)).current
   const canvasRef      = useRef(null)
+  const cellCanvasRef  = useRef(null)
   const isPainting     = useRef(false)
   const lastIdx        = useRef(-1)
   const paintColor     = useRef(0)   // color applied for the whole drag stroke
@@ -154,6 +155,22 @@ export function PatternCanvas({
 
   useEffect(() => { onPaintRef.current = onPaint }, [onPaint])
   useEffect(() => { blocksRef.current  = blocks  }, [blocks])
+
+  // Draw blocks onto the pixel canvas — single canvas element avoids reconciling
+  // hundreds of individual <div> nodes on every paint stroke.
+  useLayoutEffect(() => {
+    const el = cellCanvasRef.current
+    if (!el) return
+    const ctx = el.getContext('2d')
+    ctx.fillStyle = colorB
+    ctx.fillRect(0, 0, gridWidth, gridHeight)
+    ctx.fillStyle = colorA
+    for (let i = 0; i < blocks.length; i++) {
+      if (blocks[i] === 0) {
+        ctx.fillRect((i % cols) * cellSize, Math.floor(i / cols) * cellSize, cellSize, cellSize)
+      }
+    }
+  }, [blocks, colorA, colorB, cols, cellSize, gridWidth, gridHeight])
 
   // Convert a client-space point to a grid cell index
   const clientToIdx = useCallback((clientX, clientY) => {
@@ -230,28 +247,13 @@ export function PatternCanvas({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Background (Color B) */}
-      <div className="absolute inset-0" style={{ backgroundColor: colorB }} />
-
-      {/* Active cells (Color A) */}
-      {blocks.map((v, i) => {
-        if (v !== 0) return null
-        const col = i % cols
-        const row = Math.floor(i / cols)
-        return (
-          <div
-            key={i}
-            className="absolute"
-            style={{
-              left: col * cellSize,
-              top:  row * cellSize,
-              width:  cellSize,
-              height: cellSize,
-              backgroundColor: colorA,
-            }}
-          />
-        )
-      })}
+      {/* All cells drawn on a single canvas — no per-cell DOM nodes */}
+      <canvas
+        ref={cellCanvasRef}
+        className="absolute inset-0"
+        width={gridWidth}
+        height={gridHeight}
+      />
 
 
       {/* Grid lines, connection area markers, and block borders */}
