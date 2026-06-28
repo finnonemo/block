@@ -1,4 +1,34 @@
-// ─── Image → 16×16 Grid conversion utilities ────────────────────────────────
+// ─── Image utilities ─────────────────────────────────────────────────────────
+
+// Load an image file, resize it so its longest edge is at most maxSize px,
+// and return a base64 JPEG data URL plus the image's aspect ratio.
+// Used for the Image Fill overlay feature (NOT the Convert-to-Grid tool).
+export function loadImageAsDataUrl(file, maxSize = 800) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+
+    img.onload = () => {
+      const { naturalWidth: w, naturalHeight: h } = img
+      const scale = Math.min(1, maxSize / Math.max(w, h))
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.round(w * scale)
+      canvas.height = Math.round(h * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve({
+        dataUrl: canvas.toDataURL('image/jpeg', 0.85),
+        aspectRatio: h / w,
+      })
+    }
+
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Load failed')) }
+    img.src = url
+  })
+}
+
+// ─── Image → 16×16 Grid conversion utilities ─────────────────────────────────
 
 const GRID = 16  // always 16×16
 

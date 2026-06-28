@@ -6,6 +6,7 @@ import { PatternCanvas } from '@/components/PatternCanvas'
 import { ParameterPanel } from '@/components/ParameterPanel'
 import { PatternPreview, PatternSVG } from '@/components/PatternPreview'
 import { ImageImport } from '@/components/ImageImport'
+import { ImageOverlayPanel } from '@/components/ImageOverlayPanel'
 import {
   COLS, ROWS,
   RATIOS,
@@ -84,6 +85,8 @@ export default function AdminView({ onSwitchMode }) {
   const [state, setState]       = useState(initApp)
   const [copyStatus, setCopyStatus] = useState('idle')
   const [sidebarTab, setSidebarTab] = useState('params') // 'params' | 'gallery' | 'image' | 'dictionary'
+  const [imageSidebarTab, setImageSidebarTab] = useState('fill') // 'fill' | 'convert'
+  const [imageOverlay, setImageOverlay] = useState(null)
   const [gallery, setGallery]    = useState(loadGallery)
   const [saveModal, setSaveModal] = useState(false)
   const [dictWords, setDictWords] = useState(() => loadDictionary().words)
@@ -194,6 +197,10 @@ export default function AdminView({ onSwitchMode }) {
     setState(s => ({ ...s, blocks: Array(s.cols * s.rows).fill(1), rectangles: [] }))
   }, [])
 
+  const handleImageOverlayChange = useCallback((overlay) => {
+    setImageOverlay(overlay)
+  }, [])
+
   const handleImageApply = useCallback(({ blocks, colorA: newA, colorB: newB }) => {
     setState(s => {
       const mapped  = (s.cols !== COLS || s.rows !== ROWS)
@@ -216,14 +223,14 @@ export default function AdminView({ onSwitchMode }) {
     if (rectangles.length === 0) return
     try {
       const { width, height } = OUTPUT_SIZES[ratio]
-      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB, cols, rows, width, height))
+      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB, cols, rows, width, height, imageOverlay))
       setCopyStatus('success')
       setTimeout(() => setCopyStatus('idle'), 2000)
     } catch {
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
-  }, [rectangles, colorA, colorB, ratio, cols, rows])
+  }, [rectangles, colorA, colorB, ratio, cols, rows, imageOverlay])
 
   const handleRatioChange = useCallback((newRatio) => {
     setState(s => {
@@ -291,18 +298,26 @@ export default function AdminView({ onSwitchMode }) {
   const hasActiveCells = blocks.some(v => v === 0)
   const canSave        = currentSeed != null || hasActiveCells   // seed-based OR image/painted
 
+  const [saveError, setSaveError] = useState(null)
+
   const handleSaveToGallery = useCallback((name, category) => {
-    let newGallery
-    if (currentSeed) {
-      newGallery = addTemplate({ name, category, seed: currentSeed })
-    } else {
-      // Image-derived or hand-painted: save the actual blocks + colors
-      newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows })
+    try {
+      let newGallery
+      if (currentSeed) {
+        newGallery = addTemplate({ name, category, seed: currentSeed })
+      } else {
+        newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows, imageOverlay })
+      }
+      setGallery(newGallery)
+      setSaveModal(false)
+      setSaveError(null)
+      setSidebarTab('gallery')
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+        setSaveError('Image too large to save locally — export gallery instead.')
+      }
     }
-    setGallery(newGallery)
-    setSaveModal(false)
-    setSidebarTab('gallery')
-  }, [currentSeed, blocks, colorA, colorB, cols, rows])
+  }, [currentSeed, blocks, colorA, colorB, cols, rows, imageOverlay])
 
   const handleDeleteTemplate = useCallback((id) => {
     const newGallery = removeTemplate(id)
@@ -328,12 +343,10 @@ export default function AdminView({ onSwitchMode }) {
 
   const handleLoadTemplate = useCallback((template) => {
     if (template.seed) {
-      // Seed-based: decode + regenerate
       const decoded = decodeSeed(template.seed)
       if (!decoded) return
       handleSeedApply(decoded)
     } else if (template.blocks) {
-      // Blocks-based: restore directly
       const tCols = template.cols ?? COLS
       const tRows = template.rows ?? ROWS
       const newRects = extractBlockGroups(template.blocks, tCols, tRows)
@@ -352,6 +365,7 @@ export default function AdminView({ onSwitchMode }) {
         gridSizeKey: ratioEntry ? ratioEntry[1].find(o => o.cols === tCols && o.rows === tRows).key : s.gridSizeKey,
       }))
     }
+    setImageOverlay(template.imageOverlay ?? null)
     setSidebarTab('params')
   }, [handleSeedApply])
 
@@ -390,6 +404,7 @@ export default function AdminView({ onSwitchMode }) {
             cols={cols}
             rows={rows}
             onPaint={handlePaint}
+            imageOverlay={imageOverlay}
           />
         </main>
 
@@ -476,7 +491,32 @@ export default function AdminView({ onSwitchMode }) {
             )}
 
             {sidebarTab === 'image' && (
-              <ImageImport onApply={handleImageApply} />
+              <div>
+                {/* Image sub-tabs */}
+                <div className="flex border-b border-border">
+                  {[
+                    { id: 'fill',    label: 'Image Fill' },
+                    { id: 'convert', label: 'Convert to Grid' },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => setImageSidebarTab(id)}
+                      className={cn(
+                        'flex-1 py-2 text-caption-2 font-semibold border-b-2 transition-all',
+                        imageSidebarTab === id
+                          ? 'text-primary border-primary'
+                          : 'text-muted-foreground border-transparent hover:text-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {imageSidebarTab === 'fill'
+                  ? <ImageOverlayPanel imageOverlay={imageOverlay} onImageOverlayChange={handleImageOverlayChange} />
+                  : <ImageImport onApply={handleImageApply} />
+                }
+              </div>
             )}
 
             {sidebarTab === 'dictionary' && (
@@ -529,6 +569,9 @@ export default function AdminView({ onSwitchMode }) {
             <Button variant="secondary" className="w-full gap-2 text-footnote" onClick={handleClear}>
               Clear Canvas
             </Button>
+            {saveError && (
+              <p className="text-[10px] text-red-400 leading-relaxed">{saveError}</p>
+            )}
           </div>
 
           {/* Resize Handle */}
@@ -561,7 +604,7 @@ export default function AdminView({ onSwitchMode }) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint }) {
+function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, imageOverlay }) {
   const containerRef = useRef(null)
   const [canvasSize, setCanvasSize] = useState(512)
 
@@ -590,6 +633,7 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint })
         cols={cols}
         rows={rows}
         onPaint={onPaint}
+        imageOverlay={imageOverlay}
       />
       <p className="text-caption-1 text-muted-foreground shrink-0">
         Click or drag to paint · Block groups auto-update

@@ -1052,7 +1052,7 @@ export function assignGroupColors(rects, colorA) {
   return rects.map((_, i) => family[Math.max(0, firstIdx - i)]);
 }
 
-export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, outputWidth = 1920, outputHeight = 1920) {
+export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, outputWidth = 1920, outputHeight = 1920, imageOverlay = null) {
   const cellW = outputWidth / cols;
   const cellH = outputHeight / rows;
 
@@ -1062,7 +1062,31 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
     )
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>\n${rectEls}\n</svg>`;
+  if (!imageOverlay) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>\n${rectEls}\n</svg>`;
+  }
+
+  const clipRects = rects
+    .map(r => `    <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}"/>`)
+    .join('\n');
+
+  const imgX = imageOverlay.x * outputWidth;
+  const imgY = imageOverlay.y * outputHeight;
+  const imgW = outputWidth * imageOverlay.scale;
+  const imgH = imgW * (imageOverlay.aspectRatio ?? 1);
+  const imgOp = imageOverlay.opacity ?? 1;
+  const d = imageOverlay.dataUrl;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">
+  <defs>
+    <clipPath id="fnm-clip">
+${clipRects}
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>
+${rectEls}
+  <image href="${d}" xlink:href="${d}" x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}" clip-path="url(#fnm-clip)" opacity="${imgOp}" preserveAspectRatio="none"/>
+</svg>`;
 }
 
 export async function copySVGToClipboard(svgString) {

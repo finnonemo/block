@@ -136,13 +136,14 @@ function getEdgeMarkers(rectangles, cellSize) {
 
 export function PatternCanvas({
   blocks, rectangles = [], colorA, colorB, onPaint,
-  size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS,
+  size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS, imageOverlay = null,
 }) {
   // Snap cell size so cells are always integer pixels on both axes
   const cellSize  = Math.max(1, Math.floor(size / Math.max(cols, rows)))
   const gridWidth  = cellSize * cols
   const gridHeight = cellSize * rows
 
+  const clipId     = useRef('cc-' + Math.random().toString(36).slice(2)).current
   const canvasRef      = useRef(null)
   const isPainting     = useRef(false)
   const lastIdx        = useRef(-1)
@@ -258,7 +259,34 @@ export function PatternCanvas({
         className="absolute inset-0 pointer-events-none"
         width={gridWidth} height={gridHeight}
         xmlns="http://www.w3.org/2000/svg"
+        xmlnsXlink="http://www.w3.org/1999/xlink"
       >
+        {/* Image overlay — clipped to block shapes, below grid lines */}
+        {imageOverlay && (
+          <>
+            <defs>
+              <clipPath id={clipId}>
+                {rectangles.map((r, i) => (
+                  <rect key={i}
+                    x={r.x * cellSize} y={r.y * cellSize}
+                    width={r.w * cellSize} height={r.h * cellSize}
+                  />
+                ))}
+              </clipPath>
+            </defs>
+            <image
+              href={imageOverlay.dataUrl}
+              x={imageOverlay.x * gridWidth}
+              y={imageOverlay.y * gridHeight}
+              width={gridWidth * imageOverlay.scale}
+              height={gridWidth * imageOverlay.scale * (imageOverlay.aspectRatio ?? 1)}
+              clipPath={`url(#${clipId})`}
+              opacity={imageOverlay.opacity ?? 1}
+              preserveAspectRatio="none"
+            />
+          </>
+        )}
+
         {/* Block Borders (outlines) to see overlapping areas */}
         {isHovered && rectangles.map((r, i) => (
           <rect
