@@ -40,7 +40,7 @@ function resolve({ seed, blocks, colorA, colorB, cols = COLS, rows = ROWS }) {
 const NORM = 160
 
 export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 120, style, className, imageOverlay = null, textOverlay = null }) {
-  const clipId = useRef('ps-' + Math.random().toString(36).slice(2)).current
+  const maskId = useRef('ps-' + Math.random().toString(36).slice(2)).current
   const normH = NORM * rows / cols
   const cellW = NORM / cols
   const cellH = normH / rows
@@ -52,23 +52,18 @@ export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, si
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
     >
-      {imageOverlay && (
-        <defs>
-          <clipPath id={clipId}>
-            {rects.map((r, i) => (
-              <rect key={i} x={r.x * cellW} y={r.y * cellH} width={r.w * cellW} height={r.h * cellH} />
-            ))}
-          </clipPath>
-        </defs>
-      )}
-      <rect x="0" y="0" width={NORM} height={normH} fill={colorB} />
-      {rects.map((r, i) => (
-        <rect key={i}
-          x={r.x * cellW} y={r.y * cellH}
-          width={r.w * cellW} height={r.h * cellH}
-          fill={colorA}
-        />
-      ))}
+      {/* colorB mask: white=show colorB, black=cut out block areas to reveal layers below */}
+      <defs>
+        <mask id={maskId}>
+          <rect x="0" y="0" width={NORM} height={normH} fill="white"/>
+          {rects.map((r, i) => (
+            <rect key={i} x={r.x * cellW} y={r.y * cellH} width={r.w * cellW} height={r.h * cellH} fill="black"/>
+          ))}
+        </mask>
+      </defs>
+      {/* Layer 1: colorA fills entire canvas */}
+      <rect x="0" y="0" width={NORM} height={normH} fill={colorA} />
+      {/* Layer 2: image overlay — no clip; colorB mask above will hide it outside blocks */}
       {imageOverlay && (
         <image
           href={imageOverlay.dataUrl}
@@ -76,11 +71,12 @@ export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, si
           y={imageOverlay.y * normH}
           width={NORM * imageOverlay.scale}
           height={NORM * imageOverlay.scale * (imageOverlay.aspectRatio ?? 1)}
-          clipPath={`url(#${clipId})`}
           opacity={imageOverlay.opacity ?? 1}
           preserveAspectRatio="none"
         />
       )}
+      {/* Layer 3: colorB covers non-block areas */}
+      <rect x="0" y="0" width={NORM} height={normH} fill={colorB} mask={`url(#${maskId})`} />
       {textOverlay?.content && (() => {
         const tx = textOverlay.x * NORM
         const ty = textOverlay.y * normH
@@ -109,7 +105,7 @@ export function PatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, si
 
 // 2×2 tiled preview — each tile is the full pattern at half size
 export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS, size = 240, style, className, imageOverlay = null, textOverlay = null }) {
-  const clipBase = useRef('qp-' + Math.random().toString(36).slice(2)).current
+  const maskBase = useRef('qp-' + Math.random().toString(36).slice(2)).current
   const cellW = NORM / cols
   const normH = NORM * rows / cols
   const cellH = normH / rows
@@ -123,45 +119,34 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
     >
-      {/* Clip paths at absolute coords — one per tile to avoid transform coordinate-space issues */}
-      {imageOverlay && (
-        <defs>
-          {[0, 1, 2, 3].map(i => {
-            const tx = (i % 2) * NORM
-            const ty = Math.floor(i / 2) * normH
-            return (
-              <clipPath key={i} id={`${clipBase}-${i}`}>
-                {rects.map((r, j) => (
-                  <rect key={j}
-                    x={tx + r.x * cellW} y={ty + r.y * cellH}
-                    width={r.w * cellW} height={r.h * cellH}
-                  />
-                ))}
-              </clipPath>
-            )
-          })}
-        </defs>
-      )}
+      {/* colorB masks at absolute coords — one per tile */}
+      <defs>
+        {[0, 1, 2, 3].map(i => {
+          const tx = (i % 2) * NORM
+          const ty = Math.floor(i / 2) * normH
+          return (
+            <mask key={i} id={`${maskBase}-${i}`}>
+              <rect x={tx} y={ty} width={NORM} height={normH} fill="white"/>
+              {rects.map((r, j) => (
+                <rect key={j}
+                  x={tx + r.x * cellW} y={ty + r.y * cellH}
+                  width={r.w * cellW} height={r.h * cellH}
+                  fill="black"
+                />
+              ))}
+            </mask>
+          )
+        })}
+      </defs>
 
-      {/* Background + colorA tiles */}
+      {/* Layer 1: colorA fills each tile */}
       {[0, 1, 2, 3].map(i => {
         const tx = (i % 2) * NORM
         const ty = Math.floor(i / 2) * normH
-        return (
-          <g key={i} transform={`translate(${tx},${ty})`}>
-            <rect x="0" y="0" width={NORM} height={normH} fill={colorB} />
-            {rects.map((r, j) => (
-              <rect key={j}
-                x={r.x * cellW} y={r.y * cellH}
-                width={r.w * cellW} height={r.h * cellH}
-                fill={colorA}
-              />
-            ))}
-          </g>
-        )
+        return <rect key={i} x={tx} y={ty} width={NORM} height={normH} fill={colorA} />
       })}
 
-      {/* Image overlays at absolute positions — one per tile */}
+      {/* Layer 2: image overlays at absolute positions — no clip */}
       {imageOverlay && [0, 1, 2, 3].map(i => {
         const tx = (i % 2) * NORM
         const ty = Math.floor(i / 2) * normH
@@ -173,10 +158,18 @@ export function QuadPatternSVG({ rects, colorA, colorB, cols = COLS, rows = ROWS
             y={ty + imageOverlay.y * normH}
             width={NORM * imageOverlay.scale}
             height={NORM * imageOverlay.scale * (imageOverlay.aspectRatio ?? 1)}
-            clipPath={`url(#${clipBase}-${i})`}
             opacity={imageOverlay.opacity ?? 1}
             preserveAspectRatio="none"
           />
+        )
+      })}
+
+      {/* Layer 3: colorB masked to non-block areas per tile */}
+      {[0, 1, 2, 3].map(i => {
+        const tx = (i % 2) * NORM
+        const ty = Math.floor(i / 2) * normH
+        return (
+          <rect key={i} x={tx} y={ty} width={NORM} height={normH} fill={colorB} mask={`url(#${maskBase}-${i})`} />
         )
       })}
 

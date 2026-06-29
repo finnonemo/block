@@ -224,12 +224,11 @@ export default function AdminView({ onSwitchMode }) {
   const handleColorAChange = useCallback(hex => setState(s => ({ ...s, colorA: hex })), [])
   const handleColorBChange = useCallback(hex => setState(s => ({ ...s, colorB: hex })), [])
 
-  const handlePaint = useCallback((idx, color) => {
+  // Called once per completed paint stroke with the full updated blocks array.
+  // Replaces per-cell onPaint to avoid React re-renders during drag.
+  const handlePaintEnd = useCallback((newBlocks) => {
     setState(s => {
-      if (s.blocks[idx] === color) return s
-      const newBlocks = [...s.blocks]
-      newBlocks[idx]  = color
-      const newRects  = extractBlockGroups(newBlocks, s.cols, s.rows)
+      const newRects = extractBlockGroups(newBlocks, s.cols, s.rows)
       return { ...s, blocks: newBlocks, rectangles: newRects }
     })
   }, [])
@@ -451,7 +450,7 @@ export default function AdminView({ onSwitchMode }) {
             colorB={colorB}
             cols={cols}
             rows={rows}
-            onPaint={handlePaint}
+            onPaintEnd={handlePaintEnd}
             imageOverlay={imageOverlay}
             textOverlay={textOverlay}
           />
@@ -658,7 +657,7 @@ export default function AdminView({ onSwitchMode }) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, imageOverlay, textOverlay }) {
+function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaintEnd, imageOverlay, textOverlay }) {
   const containerRef = useRef(null)
   const [canvasSize, setCanvasSize] = useState(512)
 
@@ -686,7 +685,7 @@ function CanvasArea({ blocks, rectangles, colorA, colorB, cols, rows, onPaint, i
         colorB={colorB}
         cols={cols}
         rows={rows}
-        onPaint={onPaint}
+        onPaintEnd={onPaintEnd}
         imageOverlay={imageOverlay}
         textOverlay={textOverlay}
       />

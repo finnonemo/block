@@ -135,7 +135,7 @@ function getEdgeMarkers(rectangles, cellSize) {
 }
 
 export function PatternCanvas({
-  blocks, rectangles = [], colorA, colorB, onPaint,
+  blocks, rectangles = [], colorA, colorB, onPaintEnd,
   size = 512, cols = DEFAULT_COLS, rows = DEFAULT_ROWS, imageOverlay = null, textOverlay = null,
 }) {
   // Snap cell size so cells are always integer pixels on both axes
@@ -143,34 +143,83 @@ export function PatternCanvas({
   const gridWidth  = cellSize * cols
   const gridHeight = cellSize * rows
 
-  const clipId     = useRef('cc-' + Math.random().toString(36).slice(2)).current
   const canvasRef      = useRef(null)
   const cellCanvasRef  = useRef(null)
   const isPainting     = useRef(false)
   const lastIdx        = useRef(-1)
   const paintColor     = useRef(0)   // color applied for the whole drag stroke
-  const onPaintRef     = useRef(onPaint)
+  const onPaintEndRef  = useRef(onPaintEnd)
   const blocksRef      = useRef(blocks)
+  // Single-cell direct draw fn — refreshed after every full redraw
+  const paintCellRef   = useRef(null)
+  // Accumulates cell changes during a stroke; flushed to parent on mouseup
+  const paintBufferRef = useRef(null)
+  const imgRef         = useRef(null)
   const [isHovered, setIsHovered] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
-  useEffect(() => { onPaintRef.current = onPaint }, [onPaint])
-  useEffect(() => { blocksRef.current  = blocks  }, [blocks])
+  useEffect(() => { onPaintEndRef.current = onPaintEnd }, [onPaintEnd])
+  // Don't sync blocksRef mid-stroke — paint buffer is the live source of truth
+  useEffect(() => { if (!isPainting.current) blocksRef.current = blocks }, [blocks])
+
+  // Load image overlay into an HTMLImageElement so canvas can drawImage it
+  useEffect(() => {
+    if (!imageOverlay?.dataUrl) {
+      imgRef.current = null
+      setImageLoaded(false)
+      return
+    }
+    const img = new Image()
+    img.onload = () => { imgRef.current = img; setImageLoaded(true) }
+    img.src = imageOverlay.dataUrl
+  }, [imageOverlay?.dataUrl])
 
   // Draw blocks onto the pixel canvas — single canvas element avoids reconciling
   // hundreds of individual <div> nodes on every paint stroke.
+  // Layer order: colorA full fill → image → colorB compound path over inactive cells.
+  // colorB as a compound path (beginPath + N rect + fill) is a single GPU batch,
+  // much faster than N individual fillRect calls.
   useLayoutEffect(() => {
     const el = cellCanvasRef.current
     if (!el) return
     const ctx = el.getContext('2d')
-    ctx.fillStyle = colorB
-    ctx.fillRect(0, 0, gridWidth, gridHeight)
+
+    // Layer 1: fill entire canvas with colorA
     ctx.fillStyle = colorA
+    ctx.fillRect(0, 0, gridWidth, gridHeight)
+
+    // Layer 2: image between colorA and colorB — visible only where colorB is cut out
+    if (imgRef.current && imageOverlay) {
+      ctx.globalAlpha = imageOverlay.opacity ?? 1
+      ctx.drawImage(
+        imgRef.current,
+        imageOverlay.x * gridWidth,
+        imageOverlay.y * gridHeight,
+        gridWidth * imageOverlay.scale,
+        gridWidth * imageOverlay.scale * (imageOverlay.aspectRatio ?? 1)
+      )
+      ctx.globalAlpha = 1
+    }
+
+    // Layer 3: colorB as a single compound path over all inactive (background) cells
+    ctx.fillStyle = colorB
+    ctx.beginPath()
     for (let i = 0; i < blocks.length; i++) {
-      if (blocks[i] === 0) {
-        ctx.fillRect((i % cols) * cellSize, Math.floor(i / cols) * cellSize, cellSize, cellSize)
+      if (blocks[i] === 1) {
+        ctx.rect((i % cols) * cellSize, Math.floor(i / cols) * cellSize, cellSize, cellSize)
       }
     }
-  }, [blocks, colorA, colorB, cols, cellSize, gridWidth, gridHeight])
+    ctx.fill()
+
+    // Refresh the direct-draw fn — captures current ctx, colors, and cell dimensions.
+    // Used during paint strokes to draw individual cells without a full redraw.
+    paintCellRef.current = (idx, color) => {
+      const c = idx % cols
+      const r = Math.floor(idx / cols)
+      ctx.fillStyle = color === 0 ? colorA : colorB
+      ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize)
+    }
+  }, [blocks, colorA, colorB, cols, cellSize, gridWidth, gridHeight, imageOverlay, imageLoaded])
 
   // Convert a client-space point to a grid cell index
   const clientToIdx = useCallback((clientX, clientY) => {
@@ -192,10 +241,20 @@ export function PatternCanvas({
       const idx = clientToIdx(clientX, clientY)
       if (idx >= 0 && idx !== lastIdx.current) {
         lastIdx.current = idx
-        onPaintRef.current?.(idx, paintColor.current)
+        // Update buffer and draw directly — no React state update during stroke
+        if (paintBufferRef.current) paintBufferRef.current[idx] = paintColor.current
+        paintCellRef.current?.(idx, paintColor.current)
       }
     }
-    function onUp() { isPainting.current = false }
+    function onUp() {
+      if (!isPainting.current) return
+      isPainting.current = false
+      if (paintBufferRef.current) {
+        // Flush completed stroke to parent — one React update for the whole stroke
+        onPaintEndRef.current?.(paintBufferRef.current)
+        paintBufferRef.current = null
+      }
+    }
 
     document.addEventListener('mousemove', onMove,   { passive: false })
     document.addEventListener('mouseup',   onUp,     { passive: true  })
@@ -215,10 +274,15 @@ export function PatternCanvas({
     const { clientX, clientY } = e.touches ? e.touches[0] : e
     const idx = clientToIdx(clientX, clientY)
     if (idx >= 0) {
-      // The whole stroke paints the opposite of the first cell's current color
+      // Determine paint color from first cell; whole stroke uses the same color
       paintColor.current = blocksRef.current[idx] === 0 ? 1 : 0
       lastIdx.current = idx
-      onPaintRef.current?.(idx, paintColor.current)
+      // Copy current blocks into paint buffer — accumulates changes for the stroke
+      paintBufferRef.current = blocksRef.current.slice()
+      paintBufferRef.current[idx] = paintColor.current
+      blocksRef.current = paintBufferRef.current
+      // Draw directly on canvas — no React state update
+      paintCellRef.current?.(idx, paintColor.current)
     }
   }, [clientToIdx])
 
@@ -263,32 +327,6 @@ export function PatternCanvas({
         xmlns="http://www.w3.org/2000/svg"
         xmlnsXlink="http://www.w3.org/1999/xlink"
       >
-        {/* Image overlay — clipped to block shapes, below grid lines */}
-        {imageOverlay && (
-          <>
-            <defs>
-              <clipPath id={clipId}>
-                {rectangles.map((r, i) => (
-                  <rect key={i}
-                    x={r.x * cellSize} y={r.y * cellSize}
-                    width={r.w * cellSize} height={r.h * cellSize}
-                  />
-                ))}
-              </clipPath>
-            </defs>
-            <image
-              href={imageOverlay.dataUrl}
-              x={imageOverlay.x * gridWidth}
-              y={imageOverlay.y * gridHeight}
-              width={gridWidth * imageOverlay.scale}
-              height={gridWidth * imageOverlay.scale * (imageOverlay.aspectRatio ?? 1)}
-              clipPath={`url(#${clipId})`}
-              opacity={imageOverlay.opacity ?? 1}
-              preserveAspectRatio="none"
-            />
-          </>
-        )}
-
         {/* Block Borders (outlines) to see overlapping areas */}
         {isHovered && rectangles.map((r, i) => (
           <rect

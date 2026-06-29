@@ -1056,11 +1056,21 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
   const cellW = outputWidth / cols;
   const cellH = outputHeight / rows;
 
-  const rectEls = rects
-    .map(r =>
-      `  <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}" fill="${colorA}"/>`
-    )
+  // colorB mask: white=show colorB, black=cut out block areas to reveal colorA + image below
+  const maskRects = rects
+    .map(r => `    <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}" fill="black"/>`)
     .join('\n');
+
+  const imageEl = (() => {
+    if (!imageOverlay) return '';
+    const imgX = imageOverlay.x * outputWidth;
+    const imgY = imageOverlay.y * outputHeight;
+    const imgW = outputWidth * imageOverlay.scale;
+    const imgH = imgW * (imageOverlay.aspectRatio ?? 1);
+    const imgOp = imageOverlay.opacity ?? 1;
+    const d = imageOverlay.dataUrl;
+    return `  <image href="${d}" xlink:href="${d}" x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}" opacity="${imgOp}" preserveAspectRatio="none"/>`;
+  })();
 
   const textEl = (() => {
     if (!textOverlay?.content) return '';
@@ -1075,38 +1085,23 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
       `font-weight="${textOverlay.fontWeight}" font-style="${textOverlay.fontStyle}" ` +
       `fill="${textOverlay.color}" opacity="${textOverlay.opacity}" ` +
       `text-anchor="${textOverlay.textAnchor}" dominant-baseline="auto">${tspans}</text>`;
-  })();;
+  })();
 
-  if (!imageOverlay) {
-    const body = [
-      `  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>`,
-      rectEls,
-      textEl,
-    ].filter(Boolean).join('\n');
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">\n${body}\n</svg>`;
-  }
-
-  const clipRects = rects
-    .map(r => `    <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}"/>`)
-    .join('\n');
-
-  const imgX = imageOverlay.x * outputWidth;
-  const imgY = imageOverlay.y * outputHeight;
-  const imgW = outputWidth * imageOverlay.scale;
-  const imgH = imgW * (imageOverlay.aspectRatio ?? 1);
-  const imgOp = imageOverlay.opacity ?? 1;
-  const d = imageOverlay.dataUrl;
+  const body = [
+    imageEl,
+    `  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}" mask="url(#fnm-mask)"/>`,
+    textEl,
+  ].filter(Boolean).join('\n');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}">
   <defs>
-    <clipPath id="fnm-clip">
-${clipRects}
-    </clipPath>
+    <mask id="fnm-mask">
+      <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="white"/>
+${maskRects}
+    </mask>
   </defs>
-  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorB}"/>
-${rectEls}
-  <image href="${d}" xlink:href="${d}" x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}" clip-path="url(#fnm-clip)" opacity="${imgOp}" preserveAspectRatio="none"/>
-${textEl}
+  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorA}"/>
+${body}
 </svg>`;
 }
 
