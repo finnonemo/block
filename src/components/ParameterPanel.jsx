@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, BRAND_PALETTE, COLOR_PAIRS } from '@/utils/gridUtils'
+import { ROWS, COMPLEXITY, START_HEIGHT_OPTIONS, END_HEIGHT_OPTIONS, BRAND_PALETTE } from '@/utils/gridUtils'
 
 // ─── Switch (toggle) ─────────────────────────────────────────────────────────
 
@@ -82,69 +82,6 @@ function ParamSlider({ value, min, max, step = 1, onChange, formatLabel }) {
   )
 }
 
-// ─── Color pair picker ────────────────────────────────────────────────────────
-
-const COLOR_PAIR_GROUPS = [...new Set(COLOR_PAIRS.map(p => p.group))]
-
-function ColorPairPicker({ colorA, colorB, onSelectPair }) {
-  const [openGroup, setOpenGroup] = useState(null)
-  const activePair = COLOR_PAIRS.find(p => p.surface === colorA && p.background === colorB)
-
-  return (
-    <div className="space-y-1.5">
-      {COLOR_PAIR_GROUPS.map(group => {
-        const pairs   = COLOR_PAIRS.filter(p => p.group === group)
-        const hasActive = pairs.some(p => p.id === activePair?.id)
-        const isOpen  = openGroup === group || hasActive
-
-        return (
-          <div key={group}>
-            <button
-              onClick={() => setOpenGroup(isOpen && !hasActive ? null : group)}
-              className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-footnote transition-all',
-                hasActive ? 'bg-accent border border-primary/40 text-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <span className="font-semibold flex-1 text-left">{group}</span>
-              {hasActive && (
-                <span className="flex gap-1">
-                  <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: colorA }} />
-                  <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: colorB }} />
-                </span>
-              )}
-              <span className="text-caption-2 opacity-40">{isOpen ? '▲' : '▼'}</span>
-            </button>
-
-            {isOpen && (
-              <div className="mt-1 space-y-0.5 pl-1">
-                {pairs.map(pair => (
-                  <button
-                    key={pair.id}
-                    onClick={() => onSelectPair(pair)}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-2 py-1.5 rounded text-footnote transition-all border',
-                      activePair?.id === pair.id
-                        ? 'border-primary bg-accent text-foreground'
-                        : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
-                    )}
-                  >
-                    <span className="flex gap-0.5 shrink-0">
-                      <span className="w-5 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
-                      <span className="w-5 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
-                    </span>
-                    <span className="flex-1 text-left">{pair.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ─── Color swatch row ─────────────────────────────────────────────────────────
 
 function SwatchRow({ family, colors, activeColor, onPick }) {
@@ -173,35 +110,80 @@ function SwatchRow({ family, colors, activeColor, onPick }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange }) {
+export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColorAChange, onColorBChange, paletteA, paletteB, onPaletteAChange, onPaletteBChange }) {
   const { complexity, overlapChance, cornerChance } = params
 
   function set(key, val) {
     const newParams = { ...params, [key]: val }
-    
+
     if (key.includes('Max')) {
-      // Sliding Max below Min → push Min down to match
       const minKey = key.replace('Max', 'Min')
-      if (newParams[minKey] > val) {
-        newParams[minKey] = val
-      }
+      if (newParams[minKey] > val) newParams[minKey] = val
     } else if (key.includes('Min')) {
-      // Sliding Min above Max → push Max up to match
       const maxKey = key.replace('Min', 'Max')
-      if (newParams[maxKey] < val) {
-        newParams[maxKey] = val
-      }
+      if (newParams[maxKey] < val) newParams[maxKey] = val
     }
 
     onParamsChange(newParams)
   }
 
+  const effectivePaletteA = paletteA ?? [colorA]
+  const effectivePaletteB = paletteB ?? [colorB]
+
   const [activeSlot, setActiveSlot] = useState('A')
+  const [activePaletteIdx, setActivePaletteIdx] = useState(0)
   const [expandedGroup, setExpandedGroup] = useState('pattern')
 
+  function handleSwatchSelect(slot, idx) {
+    setActiveSlot(slot)
+    setActivePaletteIdx(idx)
+  }
+
+  function handleSwatchRemove(slot, idx) {
+    if (slot === 'A') {
+      const next = effectivePaletteA.filter((_, i) => i !== idx)
+      if (next.length === 0) return
+      if (onPaletteAChange) onPaletteAChange(next)
+      else onColorAChange(next[0])
+      if (activePaletteIdx >= next.length) setActivePaletteIdx(next.length - 1)
+    } else {
+      const next = effectivePaletteB.filter((_, i) => i !== idx)
+      if (next.length === 0) return
+      if (onPaletteBChange) onPaletteBChange(next)
+      else onColorBChange(next[0])
+      if (activePaletteIdx >= next.length) setActivePaletteIdx(next.length - 1)
+    }
+    setActiveSlot(slot)
+  }
+
+  function handleSwatchAdd(slot) {
+    if (slot === 'A') {
+      const base = effectivePaletteA[activePaletteIdx] ?? effectivePaletteA[effectivePaletteA.length - 1]
+      const next = [...effectivePaletteA, base]
+      if (onPaletteAChange) onPaletteAChange(next)
+      setActivePaletteIdx(next.length - 1)
+      setActiveSlot('A')
+    } else {
+      const base = effectivePaletteB[activePaletteIdx] ?? effectivePaletteB[effectivePaletteB.length - 1]
+      const next = [...effectivePaletteB, base]
+      if (onPaletteBChange) onPaletteBChange(next)
+      setActivePaletteIdx(next.length - 1)
+      setActiveSlot('B')
+    }
+  }
+
   function pickColor(hex) {
-    if (activeSlot === 'A') onColorAChange(hex)
-    else onColorBChange(hex)
+    if (activeSlot === 'A') {
+      const next = [...effectivePaletteA]
+      next[activePaletteIdx] = hex
+      if (onPaletteAChange) onPaletteAChange(next)
+      onColorAChange(hex)  // always update live canvas preview
+    } else {
+      const next = [...effectivePaletteB]
+      next[activePaletteIdx] = hex
+      if (onPaletteBChange) onPaletteBChange(next)
+      onColorBChange(hex)  // always update live canvas preview
+    }
   }
 
   return (
@@ -367,38 +349,31 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         </button>
         {expandedGroup === 'color' && (
           <div className="p-4 space-y-4 border-t border-border">
-            <ParamRow label="Color Pairs">
-              <ColorPairPicker
-                colorA={colorA}
-                colorB={colorB}
-                onSelectPair={pair => { onColorAChange(pair.surface); onColorBChange(pair.background) }}
+            <ParamRow label="Surface Colors">
+              <PaletteSwatchRow
+                palette={effectivePaletteA}
+                slot="A"
+                isActive={activeSlot === 'A'}
+                activePaletteIdx={activePaletteIdx}
+                onSelect={handleSwatchSelect}
+                onRemove={handleSwatchRemove}
+                onAdd={handleSwatchAdd}
               />
             </ParamRow>
 
-            <ParamRow label="Custom Colors">
-              {/* Active color slots */}
-              <div className="flex gap-2 mb-3">
-                {[
-                  { slot: 'A', label: 'Surface',    color: colorA },
-                  { slot: 'B', label: 'Background', color: colorB },
-                ].map(({ slot, label, color }) => (
-                  <button
-                    key={slot}
-                    onClick={() => setActiveSlot(slot)}
-                    className={cn(
-                      'flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-footnote font-medium border transition-all',
-                      activeSlot === slot
-                        ? 'border-primary bg-accent text-foreground'
-                        : 'border-border bg-muted text-muted-foreground hover:border-ring'
-                    )}
-                  >
-                    <span className="w-3 h-3 rounded-sm flex-shrink-0 border border-foreground/20" style={{ backgroundColor: color }} />
-                    <span className="truncate">{label}</span>
-                    <span className="ml-auto font-mono text-caption-2 opacity-50 shrink-0">{color}</span>
-                  </button>
-                ))}
-              </div>
+            <ParamRow label="Background Colors">
+              <PaletteSwatchRow
+                palette={effectivePaletteB}
+                slot="B"
+                isActive={activeSlot === 'B'}
+                activePaletteIdx={activePaletteIdx}
+                onSelect={handleSwatchSelect}
+                onRemove={handleSwatchRemove}
+                onAdd={handleSwatchAdd}
+              />
+            </ParamRow>
 
+            <ParamRow label={`Editing ${activeSlot === 'A' ? 'Surface' : 'Background'} · swatch ${(activeSlot === 'A' ? activePaletteIdx : activePaletteIdx) + 1}`}>
               {/* Brand swatches */}
               <div className="space-y-1">
                 {Object.entries(BRAND_PALETTE).map(([family, colors]) => (
@@ -406,7 +381,7 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
                     key={family}
                     family={family}
                     colors={colors}
-                    activeColor={activeSlot === 'A' ? colorA : colorB}
+                    activeColor={activeSlot === 'A' ? effectivePaletteA[activePaletteIdx] : effectivePaletteB[activePaletteIdx]}
                     onPick={pickColor}
                   />
                 ))}
@@ -416,6 +391,42 @@ export function ParameterPanel({ params, colorA, colorB, onParamsChange, onColor
         )}
       </div>
 
+    </div>
+  )
+}
+
+function PaletteSwatchRow({ palette, slot, isActive, activePaletteIdx, onSelect, onRemove, onAdd }) {
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {palette.map((hex, i) => {
+        const focused = isActive && activePaletteIdx === i
+        return (
+          <div key={i} className="relative group/swatch">
+            <button
+              onClick={() => onSelect(slot, i)}
+              title={hex}
+              className={cn(
+                'w-7 h-7 rounded-sm border-2 transition-all',
+                focused ? 'border-primary shadow-[0_0_0_1px_var(--primary)]' : 'border-foreground/10 hover:border-foreground/30'
+              )}
+              style={{ backgroundColor: hex }}
+            />
+            {palette.length > 1 && (
+              <button
+                onClick={e => { e.stopPropagation(); onRemove(slot, i) }}
+                className="absolute -top-1.5 -right-1.5 opacity-0 group-hover/swatch:opacity-100 w-3.5 h-3.5 bg-destructive rounded-full text-destructive-foreground flex items-center justify-center transition-opacity text-[8px] leading-none"
+              >×</button>
+            )}
+          </div>
+        )
+      })}
+      <button
+        onClick={() => onAdd(slot)}
+        title="Add color"
+        className="w-7 h-7 rounded-sm border border-dashed border-foreground/20 text-muted-foreground hover:border-primary hover:text-primary flex items-center justify-center transition-all"
+      >
+        <Plus size={10}/>
+      </button>
     </div>
   )
 }

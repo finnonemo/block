@@ -128,6 +128,8 @@ export default function AdminView({ onSwitchMode }) {
   const [imageSidebarTab, setImageSidebarTab] = useState('fill') // 'fill' | 'convert'
   const [imageOverlay, setImageOverlay] = useState(null)
   const [textOverlay, setTextOverlay] = useState(null)
+  const [paletteA, setPaletteA] = useState(() => [DEFAULT_PAIR.surface])
+  const [paletteB, setPaletteB] = useState(() => [DEFAULT_PAIR.background])
   const [gallery, setGallery]    = useState(loadGallery)
   const [saveModal, setSaveModal] = useState(false)
   const [dictWords, setDictWords] = useState(() => loadDictionary().words)
@@ -200,11 +202,17 @@ export default function AdminView({ onSwitchMode }) {
     fetchSharedGallery().then(shared => setGallery(mergeGalleries(shared, loadGallery())))
   }, [])
 
+  const pickFromPalette = useCallback((palette) => {
+    return palette[Math.floor(Math.random() * palette.length)]
+  }, [])
+
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
     const { rects, blocks } = generateState(params, newSeed, cols, rows)
-    setState(s => ({ ...s, seed: newSeed, rectangles: rects, blocks }))
-  }, [params, cols, rows])
+    const pickedA = pickFromPalette(paletteA)
+    const pickedB = pickFromPalette(paletteB)
+    setState(s => ({ ...s, seed: newSeed, rectangles: rects, blocks, colorA: pickedA, colorB: pickedB }))
+  }, [params, cols, rows, paletteA, paletteB, pickFromPalette])
 
   const handleParamsChange = useCallback((newParams) => {
     const newSeed = makeNewSeed()
@@ -219,10 +227,16 @@ export default function AdminView({ onSwitchMode }) {
       const { rects, blocks } = generateState(newParams, newSeed, s.cols, s.rows)
       return { ...s, seed: newSeed, params: newParams, colorA: newA, colorB: newB, rectangles: rects, blocks }
     })
+    setPaletteA([newA])
+    setPaletteB([newB])
   }, [])
 
   const handleColorAChange = useCallback(hex => setState(s => ({ ...s, colorA: hex })), [])
   const handleColorBChange = useCallback(hex => setState(s => ({ ...s, colorB: hex })), [])
+
+  // Palette handlers — only update the palette pool; colorA/colorB are updated separately via onColorAChange
+  const handlePaletteAChange = useCallback((newPalette) => setPaletteA(newPalette), [])
+  const handlePaletteBChange = useCallback((newPalette) => setPaletteB(newPalette), [])
 
   // Called once per completed paint stroke with the full updated blocks array.
   // Replaces per-cell onPaint to avoid React re-renders during drag.
@@ -260,6 +274,8 @@ export default function AdminView({ onSwitchMode }) {
         ...(newB ? { colorB: newB } : {}),
       }
     })
+    if (newA) setPaletteA(prev => { const next = [...prev]; next[0] = newA; return next })
+    if (newB) setPaletteB(prev => { const next = [...prev]; next[0] = newB; return next })
     setSidebarTab('params')
   }, [])
 
@@ -350,9 +366,9 @@ export default function AdminView({ onSwitchMode }) {
     try {
       let newGallery
       if (currentSeed) {
-        newGallery = addTemplate({ name, category, seed: currentSeed, textOverlay })
+        newGallery = addTemplate({ name, category, seed: currentSeed, textOverlay, paletteA, paletteB })
       } else {
-        newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay })
+        newGallery = addTemplate({ name, category, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay, paletteA, paletteB })
       }
       setGallery(newGallery)
       setSaveModal(false)
@@ -363,7 +379,7 @@ export default function AdminView({ onSwitchMode }) {
         setSaveError('Image too large to save locally — export gallery instead.')
       }
     }
-  }, [currentSeed, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay])
+  }, [currentSeed, blocks, colorA, colorB, cols, rows, imageOverlay, textOverlay, paletteA, paletteB])
 
   const handleDeleteTemplate = useCallback((id) => {
     const newGallery = removeTemplate(id)
@@ -392,6 +408,8 @@ export default function AdminView({ onSwitchMode }) {
       const decoded = decodeSeed(template.seed)
       if (!decoded) return
       handleSeedApply(decoded)
+      setPaletteA(template.paletteA ?? [decoded.colorA])
+      setPaletteB(template.paletteB ?? [decoded.colorB])
     } else if (template.blocks) {
       const tCols = template.cols ?? COLS
       const tRows = template.rows ?? ROWS
@@ -410,6 +428,8 @@ export default function AdminView({ onSwitchMode }) {
         ratio: ratioEntry ? ratioEntry[0] : s.ratio,
         gridSizeKey: ratioEntry ? ratioEntry[1].find(o => o.cols === tCols && o.rows === tRows).key : s.gridSizeKey,
       }))
+      setPaletteA(template.paletteA ?? [template.colorA ?? DEFAULT_PAIR.surface])
+      setPaletteB(template.paletteB ?? [template.colorB ?? DEFAULT_PAIR.background])
     }
     setImageOverlay(template.imageOverlay ?? null)
     setTextOverlay(template.textOverlay ?? null)
@@ -512,6 +532,10 @@ export default function AdminView({ onSwitchMode }) {
                   onParamsChange={handleParamsChange}
                   onColorAChange={handleColorAChange}
                   onColorBChange={handleColorBChange}
+                  paletteA={paletteA}
+                  paletteB={paletteB}
+                  onPaletteAChange={handlePaletteAChange}
+                  onPaletteBChange={handlePaletteBChange}
                 />
 
 

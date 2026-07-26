@@ -387,9 +387,10 @@ function generateSinglePatternRects(cfg, rng) {
   const amount = Math.max(2, randRange(cfg.blockMin ?? 3, cfg.blockMax ?? 5, rng));
 
   let startH = randRange(cfg.startMinH ?? 1, cfg.startMaxH ?? 14, rng);
-  // Start block is Bottom-Left anchored. It scales UPWARDS.
-  // The bottom-most row index is cfg.startY. Max possible height is (cfg.startY + 1).
-  startH = Math.max(1, Math.min(startH, (cfg.startY ?? 15) + 1));
+  const startYCfg = cfg.startY ?? 15;
+  // startY=0: top-left anchor — block sits at y=0, grows downward (no height cap)
+  // startY>0: bottom-left anchor — block grows upward to startY, height ≤ startY+1
+  startH = Math.max(1, Math.min(startH, startYCfg === 0 ? ROWS : startYCfg + 1));
 
   let endH = randRange(cfg.endMinH ?? 1, cfg.endMaxH ?? 14, rng);
   // End block is Top-Right anchored. It scales DOWNWARDS.
@@ -399,8 +400,9 @@ function generateSinglePatternRects(cfg, rng) {
   const endW = randRange(cfg.endMinW ?? 1, cfg.endMaxW ?? 14, rng);
 
   // Hoist anchor / span variables so they're available before makeHeights
-  // emergenceVal is the bottom edge coordinate (y + h)
-  const emergenceVal = clamp((cfg.startY ?? 15) + 1, 0, ROWS);
+  // startY=0: emergenceVal=0 (top-left anchor, symmetric with exitVal for endY=0)
+  // startY>0: emergenceVal = startY+1 (bottom edge of start block)
+  const emergenceVal = startYCfg === 0 ? 0 : clamp(startYCfg + 1, 0, ROWS);
   const exitVal = cfg.exitVal ?? emergenceVal;
   const isStaircase = emergenceVal !== exitVal;
   const ascending = emergenceVal > exitVal;
@@ -1056,10 +1058,12 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
   const cellW = outputWidth / cols;
   const cellH = outputHeight / rows;
 
-  // colorB mask: white=show colorB, black=cut out block areas to reveal colorA + image below
+  // colorB mask: white=show colorB, black=cut out block areas to reveal layers below
   const maskRects = rects
     .map(r => `    <rect x="${r.x * cellW}" y="${r.y * cellH}" width="${r.w * cellW}" height="${r.h * cellH}" fill="black"/>`)
     .join('\n');
+
+  const layer1 = `  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorA}"/>`;
 
   const imageEl = (() => {
     if (!imageOverlay) return '';
@@ -1100,7 +1104,7 @@ export function buildSVG(rects, colorA, colorB, cols = COLS, rows = ROWS, output
 ${maskRects}
     </mask>
   </defs>
-  <rect x="0" y="0" width="${outputWidth}" height="${outputHeight}" fill="${colorA}"/>
+${layer1}
 ${body}
 </svg>`;
 }

@@ -212,7 +212,6 @@ export function PatternCanvas({
     ctx.fill()
 
     // Refresh the direct-draw fn — captures current ctx, colors, and cell dimensions.
-    // Used during paint strokes to draw individual cells without a full redraw.
     paintCellRef.current = (idx, color) => {
       const c = idx % cols
       const r = Math.floor(idx / cols)
