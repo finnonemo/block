@@ -1,27 +1,46 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { ArrowLeft, Copy, Check, RefreshCw, Download, Layers, Settings2 } from 'lucide-react'
+import { RefreshCw, Layers, Settings2, Hand, Pipette, Crop, Save, ArrowUp, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PatternCanvas } from '@/components/PatternCanvas'
-import { PatternPreview, QuadPatternSVG } from '@/components/PatternPreview'
 import {
   COLS, ROWS,
-  COLOR_PAIRS,
+  DEFAULT_PARAMS,
   buildConfigFromParams,
   generatePatternRects,
-  extractBlockGroups,
   syncBlocks,
   buildSVG,
-  copySVGToClipboard,
   createRNG,
-  decodeSeed,
 } from '@/utils/gridUtils'
-import { CATEGORIES, loadGallery, fetchSharedGallery, mergeGalleries } from '@/utils/gallery'
 import { loadDictionary, fetchSharedDictionary, mergeDictionaries } from '@/utils/dictionary'
 
 function makeNewSeed() {
   return (Math.random() * 0x100000000) >>> 0
 }
+
+// ─── Skeuomorphic material recipes ─────────────────────────────────────────
+// Each is a layered inset shadow that fakes real light hitting a molded surface:
+// a dark shadow on the bottom-right (recessed edge), a bright highlight on the
+// top-left (catching light), and a soft ambient-occlusion tint. Matches Figma's
+// own "Surface" layer recipes rather than a flat single-tone shadow.
+const EMBOSS_DARK =
+  'shadow-[inset_-2px_-2px_4px_0px_rgba(0,0,0,0.25),inset_1px_1px_2px_0px_rgba(255,255,255,0.12),inset_2px_2px_8px_0px_rgba(189,189,191,0.05)]'
+const EMBOSS_GRAY_GRADIENT =
+  'shadow-[inset_-2px_-2px_4px_0px_rgba(0,0,0,0.25),inset_1px_1px_2px_0px_rgba(255,255,255,0.12),inset_4px_4px_8px_0px_rgba(189,189,191,0.25)]'
+const EMBOSS_ORANGE_GRADIENT =
+  'shadow-[inset_-2px_-2px_4px_0px_rgba(0,0,0,0.25),inset_1px_1px_2px_0px_rgba(255,255,255,0.5),inset_4px_4px_8px_0px_rgba(255,221,0,0.25)]'
+const EMBOSS_WHITE =
+  'shadow-[inset_-2px_-2px_4px_0px_rgba(0,0,0,0.15),inset_1px_1px_2px_0px_rgba(255,255,255,0.8),inset_2px_2px_8px_0px_rgba(255,255,255,0.4)]'
+// Recessed: the inverse — dark on top-left, light on bottom-right — like a glass
+// screen or a slot pressed *into* the material rather than a key rising out of it.
+const RECESSED_SCREEN = 'shadow-[inset_0px_4px_4px_0px_rgba(0,0,0,0.35),inset_-1px_-1px_4px_0px_rgba(255,255,255,0.12)]'
+const RECESSED_INPUT = 'shadow-[inset_0px_3px_4px_0px_rgba(0,0,0,0.3),inset_-1px_-1px_3px_0px_rgba(255,255,255,0.08)]'
+const PILL_DROP = 'shadow-[2px_2px_8px_0px_rgba(0,0,0,0.5)]'
+const BUTTON_DROP = 'shadow-[0px_2px_6px_0px_rgba(0,0,0,0.45),inset_0_1px_0_0_rgba(255,255,255,0.15)]'
+
+// Subtle top-lit gradient so flat dark cells read as molded plastic rather than
+// a flat color fill — real materials are never perfectly uniform under light.
+const SHEEN_DARK = { backgroundImage: 'linear-gradient(to bottom, #232323, #1a1a1a)' }
 
 function generateState(params, seed) {
   const rng   = createRNG(seed)
@@ -30,366 +49,219 @@ function generateState(params, seed) {
   return { rects, blocks: syncBlocks(rects) }
 }
 
-// ─── Page 1: Category Picker ──────────────────────────────────────────────────
+// Shared dictionary fuzzy-match: exact word match wins, otherwise a single
+// unambiguous substring/tag match.
+function matchDictWord(dictWords, query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return null
+  const exact = dictWords.find(w => w.word.toLowerCase() === q)
+  if (exact) return exact
+  const filtered = dictWords.filter(w =>
+    w.word.toLowerCase().includes(q) ||
+    w.tags.some(t => t.toLowerCase().includes(q))
+  )
+  return filtered.length === 1 ? filtered[0] : null
+}
 
-function CategoryPage({ gallery, dictWords, onSelect, onSelectWord, onSwitchMode }) {
-  const [mode, setMode]       = useState('browse') // 'browse' | 'type'
-  const [search, setSearch]   = useState('')
+// Floating tool chip row above the canvas — Hand (default/view), Pipette (eyedropper,
+// real: samples a cell's color off the `blocks` array), Crop (decorative — no crop
+// concept exists in the app yet, kept visible for parity with the Figma reference but
+// disabled rather than faked).
+function EditorToolbar({ toolMode, onToolChange }) {
+  const tools = [
+    { id: 'hand',      icon: Hand,    label: 'Pan' },
+    { id: 'eyedropper', icon: Pipette, label: 'Pick a color' },
+  ]
+  return (
+    <div className="flex items-center gap-4 shrink-0">
+      {tools.map(({ id, icon: Icon, label }) => (
+        <button
+          key={id}
+          onClick={() => onToolChange(id)}
+          title={label}
+          aria-label={label}
+          style={toolMode === id ? { backgroundImage: 'linear-gradient(to bottom, #444444, #333333)' } : undefined}
+          className={cn(
+            'flex items-center justify-center size-9 transition-all rounded-lg',
+            toolMode === id ? cn('text-white', EMBOSS_DARK, BUTTON_DROP) : 'bg-transparent text-white/70 hover:text-white'
+          )}
+        >
+          <Icon size={16} />
+        </button>
+      ))}
+      <button
+        disabled
+        title="Crop (coming soon)"
+        aria-label="Crop (coming soon)"
+        className="flex items-center justify-center size-9 rounded-lg bg-transparent text-white/40 cursor-not-allowed"
+      >
+        <Crop size={16} />
+      </button>
+    </div>
+  )
+}
 
-  const filtered = search.trim()
-    ? dictWords.filter(w =>
-        w.word.toLowerCase().includes(search.toLowerCase()) ||
-        w.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
-      )
-    : dictWords
+// Drag-scrub numeric dial bound to `midCurve` (0=early-large, 50=uniform, 100=late-large
+// per docs/rules/parameters.md). Vertical pointer-drag adjusts the value; arrow keys work
+// too for accessibility. Reads out in the Pixelify Sans "readout" font from the Figma ref.
+function MidCurveDial({ value, onChange }) {
+  const dragRef = useRef(null)
 
-  const handleKeyDown = (e) => {
-    if (e.key !== 'Enter') return
-    const q = search.trim().toLowerCase()
-    const exact = dictWords.find(w => w.word.toLowerCase() === q)
-    if (exact) onSelectWord(exact)
-    else if (filtered.length === 1) onSelectWord(filtered[0])
-  }
+  const handlePointerDown = useCallback((e) => {
+    e.preventDefault()
+    dragRef.current = { startY: e.clientY, startValue: value }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [value])
+
+  const handlePointerMove = useCallback((e) => {
+    if (!dragRef.current) return
+    const deltaY = dragRef.current.startY - e.clientY // drag up = increase
+    const next = Math.round(Math.min(100, Math.max(0, dragRef.current.startValue + deltaY * 0.5)))
+    onChange(next)
+  }, [onChange])
+
+  const handlePointerUp = useCallback((e) => {
+    dragRef.current = null
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+  }, [])
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); onChange(Math.min(100, value + 1)) }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); onChange(Math.max(0, value - 1)) }
+  }, [value, onChange])
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="flex items-center px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
-            <Layers size={14} className="text-primary-foreground" strokeWidth={2.5} />
-          </div>
-          <div>
-            <span className="font-semibold text-sm text-foreground">Pattern Gallery</span>
-            <span className="ml-2 text-caption-1 text-muted-foreground">Finnomena Brand</span>
-          </div>
-        </div>
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      aria-label="Size bias"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        'w-full flex flex-col items-center justify-center h-24 rounded-lg bg-black border-2 border-black cursor-ns-resize select-none touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+        RECESSED_SCREEN
+      )}
+    >
+      <span className="text-caption-2 text-white/40 font-pixel tracking-widest [text-shadow:0_0_4px_rgba(255,255,255,0.15)]">EARLY</span>
+      <span className="text-[26px] leading-none text-white font-pixel tracking-wider tabular-nums [text-shadow:0_0_8px_rgba(255,255,255,0.35)]">{value}</span>
+      <span className="text-caption-2 text-white/40 font-pixel tracking-widest [text-shadow:0_0_4px_rgba(255,255,255,0.15)]">LATE</span>
+    </div>
+  )
+}
+
+// The Figma reference's four chip labels (STR./CORNER/RISK/COST) are placeholder text
+// with no literal spec — mapped here onto real, distinct generation params:
+//   CORNER → cornerAmount (2 default ↔ 0 "exact corners off")
+//   STR.   → overlapChance (0 default/structured ↔ 1 loose/overlap)
+//   RISK   → blockMax (8 default ↔ 4 bolder/fewer blocks)
+//   COST   → midCurve preset shortcut (50 default ↔ 0 early-large extreme)
+function ParamChipRow({ params, onSetParam }) {
+  const strOn    = (params.overlapChance ?? 0) === 1
+  const cornerOn = (params.cornerAmount ?? 2) === 0
+  const riskOn   = (params.blockMax ?? 8) !== 8
+  const costOn   = (params.midCurve ?? 50) !== 50
+
+  const chips = [
+    { key: 'STR.',   active: strOn,    onClick: () => onSetParam('overlapChance', strOn ? 0 : 1) },
+    { key: 'CORNER', active: cornerOn, onClick: () => onSetParam('cornerAmount', cornerOn ? 2 : 0) },
+    { key: 'RISK',   active: riskOn,   onClick: () => onSetParam('blockMax', riskOn ? 8 : 4) },
+    { key: 'COST',   active: costOn,   onClick: () => onSetParam('midCurve', costOn ? 50 : 0) },
+  ]
+
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      {chips.map(c => (
         <button
-          onClick={onSwitchMode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border hover:border-primary/40 text-footnote text-muted-foreground hover:text-primary transition-all"
+          key={c.key}
+          onClick={c.onClick}
+          style={c.active ? undefined : SHEEN_DARK}
+          className={cn(
+            'flex items-end justify-center h-24 pb-3 rounded-lg border-2 border-black text-caption-2 font-mono font-semibold tracking-widest uppercase transition-all',
+            c.active ? cn('bg-white text-black', EMBOSS_WHITE) : cn('text-white/40 hover:text-white/70', EMBOSS_DARK)
+          )}
         >
-          <Settings2 size={12} />
-          Admin
+          {c.key}
         </button>
-      </header>
+      ))}
+    </div>
+  )
+}
 
-      {/* Mode toggle */}
-      <div className="shrink-0 flex gap-0 border-b border-border bg-card px-4 md:px-6">
-        {[
-          { id: 'browse', label: 'Browse' },
-          { id: 'type',   label: 'Type to Design' },
-        ].map(({ id, label }) => (
+// Keyword generator — types a dictionary word, submits to regenerate the current
+// pattern in place via matchDictWord + PatternBuilder's applyWord. The leading "+"
+// shuffles in a random dictionary word directly (matches the Figma reference's "Add"
+// button slot with a real action instead of a decorative plus).
+function KeywordPanel({ dictWords, value, onChange, onSubmit, onShuffle, feedback }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onShuffle}
+          disabled={dictWords.length === 0}
+          aria-label="Shuffle in a random word"
+          title="Shuffle"
+          style={SHEEN_DARK}
+          className={cn('flex items-center justify-center size-9 rounded-full border border-[#323232] text-white/70 hover:text-white shrink-0 transition-all disabled:opacity-30', EMBOSS_DARK, BUTTON_DROP)}
+        >
+          <Plus size={16} />
+        </button>
+        <div className={cn('flex-1 flex items-center gap-2 rounded-full bg-[#1d1d1d] border-2 border-black pl-4 pr-1.5 py-1.5', RECESSED_INPUT)}>
+          <input
+            type="text"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onSubmit() }}
+            placeholder="Type a word to design..."
+            className="flex-1 min-w-0 bg-transparent focus:outline-none text-white placeholder-white/40 text-sm font-pixel tracking-wide"
+          />
           <button
-            key={id}
-            onClick={() => { setMode(id); setSearch('') }}
-            className={cn(
-              'px-4 py-2.5 text-footnote font-semibold border-b-2 transition-all',
-              mode === id
-                ? 'text-primary border-primary'
-                : 'text-muted-foreground border-transparent hover:text-foreground'
-            )}
+            onClick={onSubmit}
+            disabled={!value.trim()}
+            aria-label="Generate from word"
+            className={cn('flex items-center justify-center size-8 rounded-full shrink-0 transition-all disabled:opacity-30 bg-white text-black', EMBOSS_WHITE, BUTTON_DROP)}
           >
-            {label}
+            <ArrowUp size={14} />
           </button>
-        ))}
+        </div>
       </div>
-
-      {mode === 'type' ? (
-        /* ── Type to Design ─────────────────────────────────────── */
-        <div className="flex-1 p-6 md:p-10">
-          <div className="max-w-xl mx-auto">
-            <input
-              autoFocus
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a word to design..."
-              className="w-full px-4 py-3 rounded-xl bg-muted border border-border focus:border-primary/60 focus:outline-none text-foreground placeholder-muted-foreground text-sm mb-6"
-            />
-
-            {dictWords.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-8">
-                No dictionary words yet. Ask an admin to add some!
-              </p>
-            ) : filtered.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-8">
-                No words found — try Browse or a different term.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {filtered.map(w => (
-                  <button
-                    key={w.id}
-                    onClick={() => onSelectWord(w)}
-                    className="w-full text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-accent transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                          {w.word}
-                        </p>
-                        {w.description && (
-                          <p className="text-caption-2 text-muted-foreground mt-0.5 truncate">{w.description}</p>
-                        )}
-                      </div>
-                      {w.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 shrink-0">
-                          {w.tags.slice(0, 3).map(tag => (
-                             <span key={tag} className="px-1.5 py-0.5 rounded bg-muted border border-border text-caption-2 text-muted-foreground">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-2">
-                      <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: w.colorA }} />
-                      <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: w.colorB }} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* ── Browse ─────────────────────────────────────────────── */
-        <div className="flex-1 p-6 md:p-10">
-          <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold text-foreground mb-1">Choose a Category</h1>
-            <p className="text-sm text-muted-foreground mb-8">Pick a style to browse pattern templates</p>
-
-            <div className="grid grid-cols-2 gap-4">
-              {CATEGORIES.map(cat => {
-                const templates = gallery.templates.filter(t => t.category === cat.id)
-                const previews  = templates.slice(0, 3)
-
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => templates.length > 0 && onSelect(cat.id)}
-                    disabled={templates.length === 0}
-                    className={cn(
-                      'group text-left bg-card border rounded-xl p-4 transition-all',
-                      templates.length > 0
-                        ? 'border-border hover:border-primary/40 hover:bg-accent cursor-pointer'
-                        : 'border-border opacity-40 cursor-not-allowed'
-                    )}
-                  >
-                    <div className="flex gap-1.5 mb-4 h-14">
-                      {previews.length > 0 ? previews.map(t => (
-                        <div key={t.id} className="flex-1 rounded overflow-hidden">
-                          <PatternPreview seed={t.seed} size={56} />
-                        </div>
-                      )) : (
-                        <div className="flex-1 rounded bg-muted border border-border flex items-center justify-center text-muted-foreground text-2xl">
-                          {cat.icon}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                          {cat.icon} {cat.label}
-                        </p>
-                         <p className="text-caption-2 text-muted-foreground mt-0.5">{cat.description}</p>
-                      </div>
-                       <span className="shrink-0 text-caption-2 font-semibold text-muted-foreground mt-0.5">
-                        {templates.length} pattern{templates.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {gallery.templates.length === 0 && (
-              <p className="text-center text-muted-foreground text-sm mt-8">
-                No patterns in gallery yet. Ask an admin to add some!
-              </p>
-            )}
-          </div>
-        </div>
+      {feedback && (
+        <p className={cn('text-caption-2 px-1', feedback.status === 'found' ? 'text-white/50' : 'text-red-500')}>
+          {feedback.status === 'found' ? `Applied "${feedback.word}"` : 'No matching word — try a different one.'}
+        </p>
+      )}
+      {dictWords.length === 0 && (
+        <p className="text-caption-2 text-white/50 px-1">No dictionary words yet. Ask an admin to add some!</p>
       )}
     </div>
   )
 }
 
-// ─── Page 2: Template Grid ────────────────────────────────────────────────────
+// ─── The whole of User mode: one screen (matches Figma node 150:178) ─────────
 
-function TemplatePage({ categoryId, gallery, onBack, onSelect }) {
-  const cat       = CATEGORIES.find(c => c.id === categoryId)
-  const templates = gallery.templates.filter(t => t.category === categoryId)
-
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-footnote"
-        >
-          <ArrowLeft size={14} />
-          Categories
-        </button>
-        <span className="text-muted-foreground">/</span>
-        <span className="text-sm font-semibold text-foreground">{cat?.icon} {cat?.label}</span>
-        <span className="text-caption-2 text-muted-foreground ml-auto">{templates.length} patterns</span>
-      </header>
-
-      <div className="flex-1 p-6">
-        <div className="max-w-3xl mx-auto">
-          {templates.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">No templates in this category yet.</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {templates.map(t => (
-                <TemplateCard key={t.id} template={t} onSelect={() => onSelect(t)} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TemplateCard({ template, onSelect }) {
-  // Seed-based: decode + generate rects; Blocks-based: use directly
-  const colorA = template.colorA ?? '#00e76b'
-  const colorB = template.colorB ?? '#01172b'
-
-  let rects = []
-  if (template.seed) {
-    const decoded = decodeSeed(template.seed)
-    if (decoded) {
-      const rng = createRNG(decoded.seed)
-      const cfg = buildConfigFromParams(decoded.params)
-      rects = generatePatternRects(cfg, rng)
-    }
-  } else if (template.blocks) {
-    rects = extractBlockGroups(template.blocks)
-  }
-
-  return (
-    <button
-      onClick={onSelect}
-      className="group text-left bg-card border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-all"
-    >
-      {/* 2×2 Quad preview */}
-      <div className="w-full aspect-square overflow-hidden">
-        {rects.length > 0 ? (
-          <QuadPatternSVG
-            rects={rects}
-            colorA={colorA}
-            colorB={colorB}
-            style={{ width: '100%', height: '100%' }}
-          />
-        ) : (
-          <div className="w-full h-full bg-muted" />
-        )}
-      </div>
-
-      <div className="p-3">
-        <p className="text-footnote font-semibold text-slate-200 group-hover:text-white transition-colors truncate">
-          {template.name}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorA }} />
-          <span className="w-3 h-3 rounded-sm border border-foreground/10" style={{ backgroundColor: colorB }} />
-           <span className="text-caption-2 text-muted-foreground ml-auto font-mono">{colorA}</span>
-        </div>
-      </div>
-    </button>
-  )
-}
-
-// ─── Page 3: Editor / Export ──────────────────────────────────────────────────
-
-function EditorPage({ template, onBack }) {
-  const decoded = template.seed ? decodeSeed(template.seed) : null
-  const isSeedBased = !!decoded
-
-  const [seed, setSeed]           = useState(decoded?.seed ?? makeNewSeed())
-  const [params, setParams]       = useState(decoded?.params ?? template.params ?? {})
-  const [colorA, setColorA]       = useState(template.colorA ?? decoded?.colorA ?? '#00e76b')
-  const [colorB, setColorB]       = useState(template.colorB ?? decoded?.colorB ?? '#01172b')
-  const [rectangles, setRects]    = useState([])
-  const [blocks, setBlocks]       = useState(Array(COLS * ROWS).fill(1))
-  const [copyStatus, setCopyStatus] = useState('idle')
-  const [showColorPicker, setShowColorPicker] = useState(false)
-
-  const [panelWidth, setPanelWidth] = useState(() => {
-    const saved = localStorage.getItem('fnm-sidebar-width')
-    return saved ? Math.min(560, Math.max(320, parseInt(saved, 10))) : 320
+function PatternBuilder({ dictWords, onSwitchMode }) {
+  // Computed once on mount: a fresh random pattern from DEFAULT_PARAMS. There's no
+  // incoming template anymore — this is a from-scratch builder, not a gallery viewer.
+  const [initial] = useState(() => {
+    const seed = makeNewSeed()
+    return { seed, ...generateState(DEFAULT_PARAMS, seed) }
   })
-  const [isResizing, setIsResizing] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const asideRef = useRef(null)
 
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 767px)')
-    setIsMobile(media.matches)
-    const listener = (e) => setIsMobile(e.matches)
-    media.addEventListener('change', listener)
-    return () => media.removeEventListener('change', listener)
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('fnm-sidebar-width', panelWidth)
-  }, [panelWidth])
-
-  const startResizing = useCallback((e) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }, [])
-
-  useEffect(() => {
-    if (!isResizing) return
-
-    const handleMouseMove = (e) => {
-      if (!asideRef.current) return
-      const rect = asideRef.current.getBoundingClientRect()
-      const newWidth = Math.min(560, Math.max(320, e.clientX - rect.left))
-      setPanelWidth(newWidth)
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizing])
-
-  // Init canvas from template
-  useEffect(() => {
-    if (isSeedBased && decoded) {
-      const { rects, blocks } = generateState(decoded.params, decoded.seed)
-      setRects(rects)
-      setBlocks(blocks)
-    } else if (template.blocks) {
-      const rects = extractBlockGroups(template.blocks)
-      setBlocks(template.blocks)
-      setRects(rects)
-    } else if (template.params && Object.keys(template.params).length > 0) {
-      // Dictionary word: generate a fresh pattern with the word's params
-      const newSeed = makeNewSeed()
-      const { rects, blocks } = generateState(template.params, newSeed)
-      setSeed(newSeed)
-      setRects(rects)
-      setBlocks(blocks)
-    }
-  }, [template.seed, template.blocks, template.params]) // eslint-disable-line
+  const [seed, setSeed]           = useState(initial.seed)
+  const [params, setParams]       = useState(() => ({ ...DEFAULT_PARAMS }))
+  const [colorA, setColorA]       = useState('#00e76b')
+  const [colorB, setColorB]       = useState('#01172b')
+  const [rectangles, setRects]    = useState(initial.rects)
+  const [blocks, setBlocks]       = useState(initial.blocks)
+  const [patternName, setPatternName] = useState('New Pattern')
+  const [toolMode, setToolMode]     = useState('hand') // 'hand' | 'eyedropper'
+  const [keywordInput, setKeywordInput]       = useState('')
+  const [keywordFeedback, setKeywordFeedback] = useState(null) // { status: 'found'|'not-found', word? }
+  const [pendingSample, setPendingSample]     = useState(null) // { idx, hex } — awaiting Surface/Background confirm
 
   const handleGenerate = useCallback(() => {
     const newSeed = makeNewSeed()
@@ -399,22 +271,49 @@ function EditorPage({ template, onBack }) {
     setBlocks(blocks)
   }, [params])
 
-  const handleSelectPair = useCallback((pair) => {
-    setColorA(pair.surface)
-    setColorB(pair.background)
-  }, [])
+  // Applies a dictionary word's params/colors, respecting its enabled.{colors,params}
+  // flags, generating off the locally-computed merged params (not the still-stale
+  // `params` state var, which won't be visible until next render).
+  const applyWord = useCallback((word) => {
+    const enabled = word.enabled ?? { colors: true, params: true }
+    const mergedParams = enabled.params ? word.params : params
+    const nextColorA = enabled.colors ? word.colorA : colorA
+    const nextColorB = enabled.colors ? word.colorB : colorB
+    const newSeed = makeNewSeed()
+    const { rects, blocks } = generateState(mergedParams, newSeed)
+    setParams(mergedParams)
+    setColorA(nextColorA)
+    setColorB(nextColorB)
+    setPatternName(word.word)
+    setSeed(newSeed)
+    setRects(rects)
+    setBlocks(blocks)
+  }, [params, colorA, colorB])
 
-  const handleCopy = useCallback(async () => {
-    if (rectangles.length === 0) return
-    try {
-      await copySVGToClipboard(buildSVG(rectangles, colorA, colorB))
-      setCopyStatus('success')
-      setTimeout(() => setCopyStatus('idle'), 2000)
-    } catch {
-      setCopyStatus('error')
-      setTimeout(() => setCopyStatus('idle'), 2000)
+  const handleKeywordSubmit = useCallback(() => {
+    const matched = matchDictWord(dictWords, keywordInput)
+    if (matched) {
+      applyWord(matched)
+      setKeywordFeedback({ status: 'found', word: matched.word })
+    } else {
+      setKeywordFeedback({ status: 'not-found' })
     }
-  }, [rectangles, colorA, colorB])
+  }, [dictWords, keywordInput, applyWord])
+
+  const handleShuffleWord = useCallback(() => {
+    if (dictWords.length === 0) return
+    const word = dictWords[Math.floor(Math.random() * dictWords.length)]
+    applyWord(word)
+    setKeywordInput(word.word)
+    setKeywordFeedback({ status: 'found', word: word.word })
+  }, [dictWords, applyWord])
+
+  // Eyedropper: sample color straight from the `blocks` buffer (0 → colorA, 1 → colorB)
+  // rather than reading canvas pixels — simpler and exact, no image overlay in user mode.
+  const handleSample = useCallback((idx) => {
+    if (idx == null || !blocks || blocks[idx] == null) return
+    setPendingSample({ idx, hex: blocks[idx] === 0 ? colorA : colorB })
+  }, [blocks, colorA, colorB])
 
   const handleDownload = useCallback(() => {
     if (rectangles.length === 0) return
@@ -423,126 +322,167 @@ function EditorPage({ template, onBack }) {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `${template.name.replace(/\s+/g, '-').toLowerCase()}.svg`
+    a.download = `${patternName.replace(/\s+/g, '-').toLowerCase()}.svg`
     a.click()
     URL.revokeObjectURL(url)
-  }, [rectangles, colorA, colorB, template.name])
+  }, [rectangles, colorA, colorB, patternName])
 
   return (
-    <div className="min-h-screen md:h-screen bg-background text-foreground flex flex-col md:overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-border bg-card shrink-0">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-footnote"
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
-        <span className="text-muted-foreground">/</span>
-        <span className="text-sm font-semibold text-foreground truncate">{template.name}</span>
-      </header>
+    <div
+      className="h-dvh bg-black text-white flex flex-col items-center overflow-hidden"
+      style={{ backgroundImage: 'radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255,255,255,0.05), transparent 60%)' }}
+    >
+      <div className="w-full max-w-[480px] h-full min-h-0 flex flex-col">
 
-      <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden md:min-h-0">
+        {/* Header */}
+        <header className="flex items-center gap-3 px-4 h-14 shrink-0">
+          <div className={cn('w-7 h-7 rounded-md bg-white flex items-center justify-center shrink-0', EMBOSS_WHITE)}>
+            <Layers size={14} className="text-black" strokeWidth={2.5} />
+          </div>
+          <span className="text-sm font-semibold text-white truncate">{patternName}</span>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <button
+              onClick={onSwitchMode}
+              aria-label="Switch to Admin mode"
+              title="Admin"
+              style={{ backgroundImage: 'linear-gradient(to bottom, #464646, #333333)' }}
+              className={cn('flex items-center justify-center size-9 rounded-full text-white/80 hover:text-white transition-all', EMBOSS_DARK, BUTTON_DROP)}
+            >
+              <Settings2 size={14} />
+            </button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownload}
+              disabled={rectangles.length === 0}
+              className={cn('rounded-full gap-1.5 text-footnote bg-white text-black hover:bg-white/90', EMBOSS_WHITE, BUTTON_DROP)}
+            >
+              <Save size={13} />
+              Save
+            </Button>
+          </div>
+        </header>
 
-        {/* Canvas */}
-        <main className="order-1 md:order-2 md:flex-1 md:min-h-0 overflow-hidden bg-background flex items-center justify-center p-4 md:p-8 h-[min(90vw,480px)] md:h-auto">
-          <EditorCanvasArea
-            blocks={blocks}
-            rectangles={rectangles}
-            colorA={colorA}
-            colorB={colorB}
-          />
+        {/* Toolbar + Canvas — flex-1 fills whatever space the sticky console below
+            doesn't use, matching Figma's Canvas frame (flex-[1_0_0]) exactly. */}
+        <main className="relative flex-1 min-h-0 w-full flex flex-col items-center gap-3 px-12 py-6 overflow-hidden">
+          <EditorToolbar toolMode={toolMode} onToolChange={setToolMode} />
+
+          {pendingSample && (
+            <div style={SHEEN_DARK} className={cn('absolute top-12 z-10 flex items-center gap-2 rounded-full border-2 border-black px-2 py-1.5', EMBOSS_DARK, PILL_DROP)}>
+              <span className="size-5 rounded-full border border-white/10 shrink-0" style={{ backgroundColor: pendingSample.hex }} />
+              <button
+                onClick={() => { setColorA(pendingSample.hex); setPendingSample(null) }}
+                className="px-2.5 py-1 rounded-full text-caption-2 font-semibold bg-white/10 text-white hover:bg-white/20 transition-colors"
+              >
+                Set as Surface
+              </button>
+              <button
+                onClick={() => { setColorB(pendingSample.hex); setPendingSample(null) }}
+                className="px-2.5 py-1 rounded-full text-caption-2 font-semibold bg-white/10 text-white hover:bg-white/20 transition-colors"
+              >
+                Set as Background
+              </button>
+              <button
+                onClick={() => setPendingSample(null)}
+                aria-label="Cancel"
+                className="flex items-center justify-center size-6 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          <div className="w-full flex-1 min-h-0">
+            <EditorCanvasArea
+              blocks={blocks}
+              rectangles={rectangles}
+              colorA={colorA}
+              colorB={colorB}
+              toolMode={toolMode}
+              onSample={handleSample}
+            />
+          </div>
         </main>
 
-        {/* Right panel */}
-        <aside
-          ref={asideRef}
-          style={{ '--sidebar-width': `${panelWidth}px` }}
-          className="order-2 md:order-1 sidebar-resizable md:shrink-0 bg-card border-t md:border-t-0 md:border-r border-border flex flex-col max-h-[55vh] md:max-h-none md:overflow-hidden relative"
-        >
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+        {/* Console: sticky/floating bottom bar — shrink-0 so it never scrolls away (the
+            page itself doesn't scroll, `h-dvh` + `overflow-hidden` on the root), matching
+            Figma's Chat Section sitting fixed under the flex-[1_0_0] Canvas frame. Capped
+            at 45dvh with its own internal scroll so a very long dictionary word/feedback
+            text can't push the canvas above it down to nothing. */}
+        <section className="shrink-0 w-full px-2 py-3">
+          <div className="rounded-[24px] bg-[#161617] border border-[#313131] p-4 space-y-3 max-h-[45dvh] overflow-y-auto shadow-[0px_-4px_16px_0px_rgba(0,0,0,0.4),inset_0_1px_0_0_rgba(255,255,255,0.04)]">
 
-            {/* Color pairs */}
-            <div>
-               <p className="text-caption-2 font-semibold uppercase tracking-widest text-muted-foreground mb-3">Color Scheme</p>
-              <ColorPairGrid
-                colorA={colorA}
-                colorB={colorB}
-                onSelect={handleSelectPair}
+            {/* Mode row — static indicator, matching Figma's non-interactive MODE pill */}
+            <div className="flex items-center">
+              <span style={SHEEN_DARK} className={cn('inline-flex items-center gap-1.5 rounded-full border-2 border-black px-3 py-1 text-caption-2 font-semibold uppercase tracking-widest text-white/40', EMBOSS_DARK, PILL_DROP)}>
+                Generate
+                <span className="size-2 rounded-full ring-1 ring-white/20" style={{ backgroundColor: colorA, boxShadow: `0 0 6px 0 ${colorA}` }} />
+              </span>
+            </div>
+
+            {/* Dial row: reset / size-bias screen / commit — same 3-cell shape as the
+                Figma reference's cancel / dial / confirm-arrow row, with real actions. */}
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setParams(p => ({ ...p, midCurve: 50 }))}
+                title="Reset size bias to default"
+                style={{ backgroundImage: 'linear-gradient(to top, #585657, #646265)' }}
+                className={cn('flex items-center justify-center w-24 h-24 shrink-0 rounded-lg border-2 border-black text-caption-2 font-mono font-semibold tracking-widest uppercase text-white transition-all active:translate-y-px', EMBOSS_GRAY_GRADIENT, BUTTON_DROP)}
+              >
+                Reset
+              </button>
+              <MidCurveDial
+                value={params.midCurve ?? 50}
+                onChange={v => setParams(p => ({ ...p, midCurve: v }))}
+              />
+              <button
+                onClick={handleGenerate}
+                title="Generate Variation"
+                aria-label="Generate Variation"
+                style={{ backgroundImage: 'linear-gradient(to top, #e33305, #ff8047)' }}
+                className={cn('flex items-center justify-center w-24 h-24 shrink-0 rounded-lg border-2 border-black text-white transition-all active:translate-y-px', EMBOSS_ORANGE_GRADIENT, BUTTON_DROP)}
+              >
+                <RefreshCw size={18} />
+              </button>
+            </div>
+
+            {/* Chip row */}
+            <ParamChipRow params={params} onSetParam={(key, value) => setParams(p => ({ ...p, [key]: value }))} />
+
+            {/* Keyword lookup — the only generation input, matching Figma's input row
+                exactly (no Preset/color-grid alternative, which has no Figma equivalent). */}
+            <div className="pt-1">
+              <KeywordPanel
+                dictWords={dictWords}
+                value={keywordInput}
+                onChange={setKeywordInput}
+                onSubmit={handleKeywordSubmit}
+                onShuffle={handleShuffleWord}
+                feedback={keywordFeedback}
               />
             </div>
 
-            {/* Custom colors */}
-            <div>
-              <button
-                onClick={() => setShowColorPicker(v => !v)}
-                 className="text-caption-2 font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
-              >
-                Custom Colors
-                 <span className="text-caption-2">{showColorPicker ? '▲' : '▼'}</span>
-              </button>
-              {showColorPicker && (
-                <div className="mt-2">
-                  <SimpleColorSlots
-                    colorA={colorA}
-                    colorB={colorB}
-                    onChangeA={setColorA}
-                    onChangeB={setColorB}
-                  />
-                </div>
-              )}
-            </div>
-
           </div>
+        </section>
 
-          {/* Actions */}
-          <div className="shrink-0 border-t border-border p-4 space-y-2 bg-card">
-            <Button className="w-full gap-2 text-footnote" onClick={handleGenerate}>
-              <RefreshCw size={13} />
-              Generate Variation
-            </Button>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCopy}
-                disabled={rectangles.length === 0}
-                variant={copyStatus === 'success' ? 'default' : 'secondary'}
-                className="flex-1 gap-2 text-footnote"
-              >
-                {copyStatus === 'success'
-                  ? <><Check size={13} /> Copied!</>
-                  : <><Copy size={13} /> Copy SVG</>}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={rectangles.length === 0}
-                onClick={handleDownload}
-                className="shrink-0 gap-1.5 text-footnote"
-                title="Download SVG"
-              >
-                <Download size={13} />
-              </Button>
-            </div>
-          </div>
-          {/* Resize Handle */}
-          <div
-            onMouseDown={startResizing}
-            className={cn("sidebar-resizer", isResizing && "is-resizing")}
-          >
-            <div className="sidebar-resizer-line" />
-          </div>
-
-        </aside>
       </div>
     </div>
   )
 }
 
-// Canvas area (read-only for user view — no painting)
-function EditorCanvasArea({ blocks, rectangles, colorA, colorB }) {
+const BEZEL = 8 // px frame around the canvas screen, see EditorCanvasArea below
+
+// Canvas area (read-only for user view — no painting; eyedropper sampling only)
+function EditorCanvasArea({ blocks, rectangles, colorA, colorB, toolMode = 'hand', onSample }) {
   const containerRef = useRef(null)
+  const canvasWrapRef = useRef(null)
   const [canvasSize, setCanvasSize] = useState(480)
 
+  // containerRef is the flexible area left over after the caption's own row (a `flex-1
+  // min-h-0` box inside a `flex-col` card) — its width and height are both independently
+  // real (not aspect-forced), since the card itself is height-constrained by the sticky
+  // layout above, so min(width,height) gives the correct square size with no overflow.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -556,188 +496,73 @@ function EditorCanvasArea({ blocks, rectangles, colorA, colorB }) {
     return () => ro.disconnect()
   }, [])
 
-  return (
-    <div ref={containerRef} className="w-full h-full flex flex-col items-center justify-center gap-2">
-      <PatternCanvas
-        size={canvasSize}
-        blocks={blocks}
-        rectangles={rectangles}
-        colorA={colorA}
-        colorB={colorB}
-      />
-      <p className="text-caption-1 text-muted-foreground shrink-0">1920 × 1920 px export</p>
-    </div>
-  )
-}
-
-// Grid of color pair swatches
-function ColorPairGrid({ colorA, colorB, onSelect }) {
-  const active = COLOR_PAIRS.find(p => p.surface === colorA && p.background === colorB)
+  // Eyedropper: map the click position to a grid cell and sample straight from the
+  // `blocks` buffer already held in PatternBuilder state — matches PatternCanvas's own
+  // clientToIdx math (row * cols + col) without needing to touch that component.
+  const innerSize = Math.max(1, canvasSize - BEZEL * 2)
+  const handleSampleClick = useCallback((e) => {
+    if (!onSample) return
+    const el = canvasWrapRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const cellSize = Math.max(1, Math.floor(innerSize / Math.max(COLS, ROWS)))
+    const col = Math.floor((e.clientX - rect.left) / cellSize)
+    const row = Math.floor((e.clientY - rect.top) / cellSize)
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return
+    onSample(row * COLS + col)
+  }, [onSample, innerSize])
 
   return (
-    <div className="grid grid-cols-3 gap-1.5">
-      {COLOR_PAIRS.map(pair => (
-        <button
-          key={pair.id}
-          onClick={() => onSelect(pair)}
-          title={pair.label}
-          className={cn(
-            'flex flex-col items-center gap-1 p-1.5 rounded-md border transition-all',
-            active?.id === pair.id
-              ? 'border-primary bg-accent'
-              : 'border-border bg-muted hover:border-ring'
-          )}
+    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div ref={containerRef} className="w-full flex-1 min-h-0 flex items-center justify-center">
+        {/* Bezel: a dark metal-gradient frame around the screen, like a device the
+            pattern is "mounted in" — a classic skeuomorphic device-chrome touch. */}
+        <div
+          className="relative rounded-[26px]"
+          style={{
+            width: canvasSize,
+            height: canvasSize,
+            backgroundImage: 'linear-gradient(145deg, #2e2e2e, #0a0a0a)',
+            boxShadow: '0px 8px 40px 0px rgba(0,0,0,0.5), inset 0 1px 1px 0px rgba(255,255,255,0.08)',
+          }}
         >
-          <div className="flex gap-0.5 w-full">
-            <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.surface }} />
-            <span className="flex-1 h-5 rounded-sm border border-foreground/10" style={{ backgroundColor: pair.background }} />
-          </div>
-           <span className="text-caption-2 text-muted-foreground leading-none text-center line-clamp-1 w-full">{pair.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// Simple A/B color slots with brand swatch grid
-function SimpleColorSlots({ colorA, colorB, onChangeA, onChangeB }) {
-  const [slot, setSlot] = useState('A')
-  const BRAND = {
-    Navy: ['#01172b', '#415160', '#808b95', '#c0c5ca'],
-    'Lt.Grey': ['#a6bfcc', '#bccfd9', '#d3dfe6', '#e9eff2'],
-    Yellow: ['#f2f93c', '#f5fb6d', '#f9fc9e', '#fcfece'],
-    White: ['#ffffff'],
-    Green: ['#00e76b', '#40ed90', '#80f3b5', '#bff9da'],
-    Blue: ['#50cfff', '#7cdbff', '#a8e7ff', '#d3f3ff'],
-    Purple: ['#aa46c3', '#bf74d2', '#d5a3e1', '#ead1f0'],
-    Red: ['#f73232', '#f96565', '#fb9999', '#fdcccc'],
-    Orange: ['#f26414', '#f58b4f', '#f9b28a', '#fcd8c4'],
-  }
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-1.5">
-        {[{ s: 'A', c: colorA, label: 'Surface' }, { s: 'B', c: colorB, label: 'BG' }].map(({ s, c, label }) => (
-          <button
-            key={s}
-            onClick={() => setSlot(s)}
-            className={cn(
-              'flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-footnote transition-all',
-              slot === s ? 'border-primary bg-accent text-foreground' : 'border-border bg-muted text-muted-foreground'
-            )}
+          <div
+            ref={canvasWrapRef}
+            className="absolute rounded-[20px] overflow-hidden shadow-[inset_0_2px_6px_0px_rgba(0,0,0,0.5)]"
+            style={{ inset: BEZEL, width: innerSize, height: innerSize }}
           >
-            <span className="w-3 h-3 rounded-sm border border-foreground/20" style={{ backgroundColor: c }} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-      <div className="space-y-1">
-        {Object.entries(BRAND).map(([fam, colors]) => (
-          <div key={fam} className="flex items-center gap-1.5">
-             <span className="text-caption-2 text-muted-foreground/60 w-12 text-right shrink-0">{fam}</span>
-            <div className="flex gap-1">
-              {colors.map(hex => (
-                <button
-                  key={hex}
-                  onClick={() => slot === 'A' ? onChangeA(hex) : onChangeB(hex)}
-                  className={cn(
-                    'w-5 h-5 rounded-sm border transition-all hover:scale-110',
-                    (slot === 'A' ? colorA : colorB) === hex
-                      ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary))]'
-                      : 'border-foreground/10 hover:border-foreground/30'
-                  )}
-                  style={{ backgroundColor: hex }}
-                />
-              ))}
-            </div>
+            <PatternCanvas
+              size={innerSize}
+              blocks={blocks}
+              rectangles={rectangles}
+              colorA={colorA}
+              colorB={colorB}
+            />
+            {toolMode === 'eyedropper' && (
+              <button
+                onClick={handleSampleClick}
+                aria-label="Sample a color from the pattern"
+                className="absolute inset-0 cursor-crosshair ring-2 ring-inset ring-white/40"
+              />
+            )}
           </div>
-        ))}
+        </div>
       </div>
+      <p className="text-caption-2 text-white/40 shrink-0">1920 × 1920 px export</p>
     </div>
   )
 }
 
-// ─── Root UserView with page routing ─────────────────────────────────────────
+// ─── Root: User mode is now just this one screen ─────────────────────────────
 
 export default function UserView({ onSwitchMode }) {
-  const [gallery, setGallery]         = useState(loadGallery)
-  const [dictWords, setDictWords]     = useState(() => loadDictionary().words)
-  const [page, setPage]               = useState(1)
-  const [selectedCategory, setCategory]   = useState(null)
-  const [selectedTemplate, setTemplate]   = useState(null)
-  const [editorFromDict, setEditorFromDict] = useState(false)
+  const [dictWords, setDictWords] = useState(() => loadDictionary().words)
 
   useEffect(() => {
-    fetchSharedGallery().then(shared => {
-      setGallery(prev => mergeGalleries(shared, prev))
-    })
     fetchSharedDictionary().then(shared => {
       setDictWords(prev => mergeDictionaries(shared, { words: prev }).words)
     })
   }, [])
 
-  const handleSelectCategory = useCallback((catId) => {
-    setCategory(catId)
-    setPage(2)
-  }, [])
-
-  const handleSelectTemplate = useCallback((template) => {
-    setTemplate(template)
-    setEditorFromDict(false)
-    setPage(3)
-  }, [])
-
-  const handleSelectWord = useCallback((word) => {
-    const enabled = word.enabled ?? { colors: true, params: true }
-    setTemplate({
-      name:   word.word,
-      // null means "don't override" — EditorPage falls back to defaults
-      params: enabled.params ? word.params : {},
-      colorA: enabled.colors ? word.colorA : null,
-      colorB: enabled.colors ? word.colorB : null,
-      seed:   null,
-      blocks: null,
-    })
-    setEditorFromDict(true)
-    setPage(3)
-  }, [])
-
-  const handleBackToCategories = useCallback(() => {
-    setPage(1)
-    setCategory(null)
-  }, [])
-
-  const handleBackToTemplates = useCallback(() => {
-    setPage(2)
-    setTemplate(null)
-  }, [])
-
-  if (page === 3 && selectedTemplate) {
-    return (
-      <EditorPage
-        template={selectedTemplate}
-        onBack={editorFromDict ? handleBackToCategories : handleBackToTemplates}
-      />
-    )
-  }
-
-  if (page === 2 && selectedCategory) {
-    return (
-      <TemplatePage
-        categoryId={selectedCategory}
-        gallery={gallery}
-        onBack={handleBackToCategories}
-        onSelect={handleSelectTemplate}
-      />
-    )
-  }
-
-  return (
-    <CategoryPage
-      gallery={gallery}
-      dictWords={dictWords}
-      onSelect={handleSelectCategory}
-      onSelectWord={handleSelectWord}
-      onSwitchMode={onSwitchMode}
-    />
-  )
+  return <PatternBuilder dictWords={dictWords} onSwitchMode={onSwitchMode} />
 }
